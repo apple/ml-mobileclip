@@ -2,7 +2,7 @@
 
 This is the official repository of 
 
-**MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training. (CVPR 2024)**
+**[MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training](https://arxiv.org/pdf/2311.17049.pdf). (CVPR 2024)**
 *Pavan Kumar Anasosalu Vasu, Hadi Pouransari, Fartash Faghri, Raviteja Vemulapalli, Oncel Tuzel.*
 
 [//]: # (![MobileCLIP Performance]&#40;docs/fig_accuracy_latency.png&#41;)
