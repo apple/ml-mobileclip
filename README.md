@@ -26,6 +26,12 @@ To download pretrained checkpoints follow the code snippet below
 source get_pretrained_models.sh   # Files will be downloaded to `checkpoints` directory.
 ```
 
+Alternatively, you can find the model checkpoints on the Hugging Face Hub [here](https://huggingface.co/models?other=mobileclip). To download the models, go to the repository of your model of interest and click the `Files and versions` tab, then download the PyTorch checkpoint. For  programmatic downloading, if you have `huggingface_hub` installed, you can also run:
+
+```
+huggingface-cli download pcuenq/MobileCLIP-B
+``` 
+
 ## Getting Started
 For easy adoption, our model has similar API as [open_clip](https://github.com/mlfoundations/open_clip) models.
 To use our model, follow the code snippet below
