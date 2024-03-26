@@ -29,6 +29,7 @@ class CLIP(
     def __init__(self, cfg: Dict, output_dict: bool = False, *args, **kwargs) -> None:
         super().__init__()
         self.output_dict = output_dict
+        self.cfg = cfg
         self.projection_dim = cfg["embed_dim"]
         if self.projection_dim is None:
             raise ValueError("Please specify `embed_dim` in model config.")
@@ -64,7 +65,7 @@ class CLIP(
         image: Optional[torch.Tensor] = None,
         text: Optional[torch.Tensor] = None,
         *args,
-        **kwargs
+        **kwargs,
     ) -> Any:
         image_embeddings = (
             self.encode_image(image, normalize=True) if image is not None else None

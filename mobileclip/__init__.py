@@ -118,7 +118,7 @@ def from_pretrained(
     if reparameterize:
         model = reparameterize_model(model)
 
-    cfg = model._hub_mixin_config["cfg"]
+    cfg = model.cfg
     resolution = cfg["image_cfg"]["image_size"]
     resize_size = resolution
     centercrop_size = resolution
