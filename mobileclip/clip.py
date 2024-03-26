@@ -18,11 +18,12 @@ from mobileclip.text_encoder import (
 from .image_encoder import MCi
 
 
-class CLIP(nn.Module,
-           PyTorchModelHubMixin,
-           library_name="CLIP",
-           repo_url="https://github.com/apple/ml-mobileclip"
-           ):
+class CLIP(
+    nn.Module,
+    PyTorchModelHubMixin,
+    library_name="CLIP",
+    repo_url="https://github.com/apple/ml-mobileclip",
+):
     """Base class for multi-modal image-text data"""
 
     def __init__(self, cfg: Dict, output_dict: bool = False, *args, **kwargs) -> None:
@@ -65,7 +66,6 @@ class CLIP(nn.Module,
         *args,
         **kwargs
     ) -> Any:
-
         image_embeddings = (
             self.encode_image(image, normalize=True) if image is not None else None
         )

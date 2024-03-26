@@ -94,3 +94,42 @@ def get_tokenizer(model_name: str) -> nn.Module:
     # Build tokenizer
     text_tokenizer = ClipTokenizer(model_cfg)
     return text_tokenizer
+
+
+def from_pretrained(
+    repo_id: str,
+    reparameterize: Optional[bool] = True,
+    device: Union[str, torch.device] = "cpu",
+) -> Tuple[nn.Module, Any, Any]:
+    """Method to load the model, tokenizer and pre-processing transforms necessary for inference.
+    Args:
+        repo_id (str): The identifier of the model repository.
+        reparameterize (Optional[bool], optional): Whether to reparameterize the model for inference. Defaults to True.
+        device (Union[str, torch.device], optional): The device to load the model on. Defaults to "cpu".
+
+    Returns:
+        Tuple[nn.Module, Any, Any]: The loaded model, tokenizer and pre-processing transforms.
+    """
+
+    model = CLIP.from_pretrained(repo_id)
+    model.to(device)
+    model.eval()
+
+    if reparameterize:
+        model = reparameterize_model(model)
+
+    cfg = model._hub_mixin_config["cfg"]
+    resolution = cfg["image_cfg"]["image_size"]
+    resize_size = resolution
+    centercrop_size = resolution
+    aug_list = [
+        Resize(
+            resize_size,
+            interpolation=InterpolationMode.BILINEAR,
+        ),
+        CenterCrop(centercrop_size),
+        ToTensor(),
+    ]
+    preprocess = Compose(aug_list)
+    tokenizer = ClipTokenizer(cfg)
+    return model, tokenizer, preprocess
