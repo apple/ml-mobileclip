@@ -21,7 +21,7 @@ from .image_encoder import MCi
 class CLIP(
     nn.Module,
     PyTorchModelHubMixin,
-    library_name="CLIP",
+    library_name="mobileclip",
     repo_url="https://github.com/apple/ml-mobileclip",
 ):
     """Base class for multi-modal image-text data"""
