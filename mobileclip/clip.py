@@ -9,6 +9,7 @@ from typing import Any, Optional, Dict
 import torch
 import torch.nn.functional as F
 from torch import nn
+from huggingface_hub import PyTorchModelHubMixin
 
 from mobileclip.text_encoder import (
     TextTransformer,
@@ -17,7 +18,11 @@ from mobileclip.text_encoder import (
 from .image_encoder import MCi
 
 
-class CLIP(nn.Module):
+class CLIP(nn.Module,
+           PyTorchModelHubMixin,
+           library_name="CLIP",
+           repo_url="https://github.com/apple/ml-mobileclip"
+           ):
     """Base class for multi-modal image-text data"""
 
     def __init__(self, cfg: Dict, output_dict: bool = False, *args, **kwargs) -> None:

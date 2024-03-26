@@ -4,3 +4,4 @@ open-clip-torch>=2.20.0
 timm>=0.9.5
 torch==1.13.1
 torchvision==0.14.1
+huggingface_hub>=0.22
