@@ -547,7 +547,7 @@ class Compose:
                 params_compressed += [t.compress_params(p)]
             else:
                 if no_pair:
-                    params_compressed += [t.compress_params(p[0])]
+                    params_compressed += [t.compress_params(p)]
                 else:
                     params_compressed += [
                         [t.compress_params(p[0]), t.compress_params(p[1])]
