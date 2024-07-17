@@ -87,6 +87,7 @@ Variants currently available on OpenCLIP,
 
 
 ## Evaluation
+Please find the detailed evaluation results [here](./results).
 To reproduce results, we provide script to perform zero-shot evaluation on ImageNet-1k dataset. 
 To evaluate on all the 38 datasets, please follow instructions in [datacomp](https://github.com/mlfoundations/datacomp).
 ```bash
