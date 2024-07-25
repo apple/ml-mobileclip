@@ -2,5 +2,5 @@ clip-benchmark>=1.4.0
 datasets>=2.8.0
 open-clip-torch>=2.20.0
 timm>=0.9.5
-torch==1.13.1
+torch==2.2.0
 torchvision==0.14.1
