@@ -55,6 +55,9 @@ with torch.no_grad(), torch.cuda.amp.autocast():
 print("Label probs:", text_probs)
 ```
 
+For an example of loading the data from HuggingFace see 
+[hf_dataset_example.py](./hf_dataset_example.py).
+
 ### OpenCLIP Support
 Our models are now natively supported in OpenCLIP. To use MobileCLIP models in OpenCLIP, setup your environment as shown below,
 ```bash
