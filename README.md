@@ -10,6 +10,7 @@ The repository contains code for inference, training, and evaluation of MobileCL
 <img src="docs/fig_accuracy_latency.png" alt="Accuracy vs latency figure." width="400"/>
 </p>
 
+- **Update 2024/11/22:** Releasing iOS app to demonstrate the use of our model for real-time zero-shot image classification. See [ios_app](./ios_app/).
 - **Update 2024/06/13:** Releasing the code and scripts to train using [OpenCLIP](https://github.com/mlfoundations/open_clip/tree/main/src/open_clip) on DataCompDR datasets. See [training/](./training/).
 - **Update 2024/06/13:** MobileCLIP models and DataCompDR datasets are now available on HuggingFace in [MobileCLIP/DataCompDR Collection](https://huggingface.co/collections/apple/mobileclip-models-datacompdr-data-665789776e1aa2b59f35f7c8).
 
@@ -17,6 +18,9 @@ The repository contains code for inference, training, and evaluation of MobileCL
 * Our smallest variant `MobileCLIP-S0` obtains similar zero-shot performance as [OpenAI](https://arxiv.org/abs/2103.00020)'s ViT-B/16 model while being 4.8x faster and 2.8x smaller.
 * `MobileCLIP-S2` obtains better avg zero-shot performance than [SigLIP](https://arxiv.org/abs/2303.15343)'s ViT-B/16 model while being 2.3x faster and 2.1x smaller, and trained with 3x less seen samples.
 * `MobileCLIP-B`(LT) attains zero-shot ImageNet performance of **77.2%** which is significantly better than recent works like [DFN](https://arxiv.org/abs/2309.17425) and [SigLIP](https://arxiv.org/abs/2303.15343) with similar architectures or even [OpenAI's ViT-L/14@336](https://arxiv.org/abs/2103.00020).
+* iOS app to demonstrate the superior performance of our model on a mobile device.
+
+![Examples](ios_app/docs/app_screenshots/examples.png)
 
 ## Getting Started
 
