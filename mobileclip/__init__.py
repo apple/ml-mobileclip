@@ -72,7 +72,7 @@ def create_model_and_transforms(
 
     # Load checkpoint
     if pretrained is not None:
-        chkpt = torch.load(pretrained)
+        chkpt = torch.load(pretrained, weights_only=True)
         model.load_state_dict(chkpt)
 
     # Reparameterize model for inference (if specified)
