@@ -3,4 +3,4 @@ datasets>=2.21.0
 open-clip-torch>=2.20.0
 timm>=0.9.5
 torch>=2.1.0
-torchvision==0.14.1
+torchvision>=0.20.1
