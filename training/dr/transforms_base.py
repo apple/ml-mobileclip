@@ -13,15 +13,14 @@
 import math
 import random
 from typing import Any, Dict, Optional, OrderedDict, Tuple
+
 import numpy as np
-
 import timm
-from timm.data.transforms import str_to_interp_mode
 import torch
-from torch import Tensor
 import torchvision.transforms as T
+from timm.data.transforms import str_to_interp_mode
+from torch import Tensor
 from torch.nn import functional as F
-
 
 INTERPOLATION_MODE_MAP = {
     "nearest": T.InterpolationMode.NEAREST,
@@ -37,9 +36,7 @@ INTERPOLATION_MODE_MAP = {
 class AutoAugment(T.AutoAugment):
     """Extend PyTorch's AutoAugment to init from a policy and an interpolation name."""
 
-    def __init__(
-        self, policy: str = "imagenet", interpolation: str = "bilinear", *args, **kwargs
-    ) -> None:
+    def __init__(self, policy: str = "imagenet", interpolation: str = "bilinear", *args, **kwargs) -> None:
         """Init from an policy and interpolation name."""
         if "cifar" in policy.lower():
             policy = T.AutoAugmentPolicy.CIFAR10
@@ -151,9 +148,7 @@ class MixUp(torch.nn.Module):
     See https://arxiv.org/abs/1710.09412 for more details.
     """
 
-    def __init__(
-        self, alpha: float = 1.0, p: float = 1.0, div_by: float = 1.0, *args, **kwargs
-    ) -> None:
+    def __init__(self, alpha: float = 1.0, p: float = 1.0, div_by: float = 1.0, *args, **kwargs) -> None:
         """Initialize MixUp transformation.
 
         Args:
@@ -276,9 +271,7 @@ class CutMix(torch.nn.Module):
 
         return (bbx1, bby1, bbx2, bby2)
 
-    def get_params(
-        self, size: torch.Size, alpha: float
-    ) -> Tuple[float, Tuple[int, int, int, int]]:
+    def get_params(self, size: torch.Size, alpha: float) -> Tuple[float, Tuple[int, int, int, int]]:
         """Return CutMix random parameters."""
         # Skip mixing by probability 1-self.p
         if alpha == 0 or torch.rand(1) > self.p:

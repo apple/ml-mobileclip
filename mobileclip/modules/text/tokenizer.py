@@ -32,7 +32,7 @@ class ClipTokenizer(nn.Module):
     def forward(self, input_sentence: str, *args, **kwargs) -> Tensor:
         # tokenizer returns indices as a string
         tokenized_sentence = self.tokenizer(input_sentence, self.context_length)
-        assert (
-            tokenized_sentence.shape[-1] == self.context_length
-        ), "Tokenized tensor should be exactly `context_length` long."
+        assert tokenized_sentence.shape[-1] == self.context_length, (
+            "Tokenized tensor should be exactly `context_length` long."
+        )
         return tokenized_sentence

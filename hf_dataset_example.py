@@ -2,27 +2,24 @@
 # For licensing see accompanying LICENSE file.
 # Copyright (C) 2024 Apple Inc. All Rights Reserved.
 #
-from PIL import Image
-import requests
-from io import BytesIO
-from datasets import load_dataset
 import json
+from io import BytesIO
+
 import numpy as np
+import requests
 import torch
+from datasets import load_dataset
+from PIL import Image
 
 from training.dr.transforms import compose_from_config
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     rconfig_aug = {
-        "normalize": {
-            "mean": [0.48145466, 0.4578275, 0.40821073],
-            "std": [0.26862954, 0.26130258, 0.27577711]
-        },
+        "normalize": {"mean": [0.48145466, 0.4578275, 0.40821073], "std": [0.26862954, 0.26130258, 0.27577711]},
         "rand_augment": {"enable": True, "p": 1.0},
         "random_resized_crop": {"interpolation": "bicubic", "size": 224},
         "to_rgb": {"enable": True},
-        "to_tensor": {"enable": True}
+        "to_tensor": {"enable": True},
     }
     dr_transforms = compose_from_config(rconfig_aug)
 
@@ -30,7 +27,7 @@ if __name__ == '__main__':
     sample = next(iter(dataset))
 
     # Load image from URL
-    url = sample['url.txt']
+    url = sample["url.txt"]
     response = requests.get(url)
     img = Image.open(BytesIO(response.content))
     sample["image"] = img
@@ -41,7 +38,7 @@ if __name__ == '__main__':
     aug_idx = np.random.randint(0, len(param_augs))
     params = param_augs[aug_idx]
     params = dr_transforms.decompress(params)
-    image = sample["image"].convert('RGB')
+    image = sample["image"].convert("RGB")
     image, _ = dr_transforms.reapply(image, params)
 
     # Preprocess synthetic text
@@ -57,7 +54,7 @@ if __name__ == '__main__':
         text_emb_all = sample["pth.gz"]["text_emb"]
     capi = 0
     text_emb = text_emb_all[capi]
-    syn_text_emb = text_emb_all[1+scapi]
+    syn_text_emb = text_emb_all[1 + scapi]
     if not isinstance(image_emb, torch.Tensor):
         image_emb = torch.tensor(image_emb)
         text_emb = torch.tensor(text_emb)
@@ -68,10 +65,10 @@ if __name__ == '__main__':
 
     print(
         {
-            'image': image.shape,
-            'image_emb': image_emb.shape,
-            'text_emb': text_emb.shape,
+            "image": image.shape,
+            "image_emb": image_emb.shape,
+            "text_emb": text_emb.shape,
             "syn_text": syn_text,
-            'syn_text_emb': syn_text_emb.shape,
+            "syn_text_emb": syn_text_emb.shape,
         }
     )

@@ -6,8 +6,8 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-
 from timm.models.layers import DropPath, trunc_normal_
+
 from mobileclip.modules.common.mobileone import MobileOneBlock
 
 
@@ -131,9 +131,7 @@ class RepMixer(nn.Module):
             )
             self.use_layer_scale = use_layer_scale
             if use_layer_scale:
-                self.layer_scale = nn.Parameter(
-                    layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True
-                )
+                self.layer_scale = nn.Parameter(layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if hasattr(self, "reparam_conv"):
@@ -160,15 +158,9 @@ class RepMixer(nn.Module):
             w = self.mixer.id_tensor + self.layer_scale.unsqueeze(-1) * (
                 self.mixer.reparam_conv.weight - self.norm.reparam_conv.weight
             )
-            b = torch.squeeze(self.layer_scale) * (
-                self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias
-            )
+            b = torch.squeeze(self.layer_scale) * (self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias)
         else:
-            w = (
-                self.mixer.id_tensor
-                + self.mixer.reparam_conv.weight
-                - self.norm.reparam_conv.weight
-            )
+            w = self.mixer.id_tensor + self.mixer.reparam_conv.weight - self.norm.reparam_conv.weight
             b = self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias
 
         self.reparam_conv = nn.Conv2d(
@@ -225,7 +217,6 @@ class RepMixerBlock(nn.Module):
             layer_scale_init_value: Layer scale value at initialization. Default: 1e-5
             inference_mode: Flag to instantiate block in inference mode. Default: ``False``
         """
-
         super().__init__()
 
         self.token_mixer = RepMixer(
@@ -236,9 +227,7 @@ class RepMixerBlock(nn.Module):
             inference_mode=inference_mode,
         )
 
-        assert mlp_ratio > 0, "MLP ratio should be greater than 0, found: {}".format(
-            mlp_ratio
-        )
+        assert mlp_ratio > 0, f"MLP ratio should be greater than 0, found: {mlp_ratio}"
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.convffn = ConvFFN(
             in_channels=dim,
@@ -254,9 +243,7 @@ class RepMixerBlock(nn.Module):
         # Layer Scale
         self.use_layer_scale = use_layer_scale
         if use_layer_scale:
-            self.layer_scale = nn.Parameter(
-                layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True
-            )
+            self.layer_scale = nn.Parameter(layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True)
 
     def forward(self, x, *args, **kwargs):
         if x.dim() == 3:
@@ -265,9 +252,7 @@ class RepMixerBlock(nn.Module):
             x = x.permute(0, 2, 1)
             x = torch.unsqueeze(x, dim=2)
         else:
-            raise ValueError(
-                f"Expected tensor of dim=3, obtained tensor of dim={x.dim()}"
-            )
+            raise ValueError(f"Expected tensor of dim=3, obtained tensor of dim={x.dim()}")
 
         if self.use_layer_scale:
             x = self.token_mixer(x)

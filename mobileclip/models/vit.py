@@ -4,7 +4,7 @@
 #
 """
 Implementation of the following modules is borrowed from ml-cvnets repo:
-https://github.com/apple/ml-cvnets/blob/main/cvnets/models/classification/vit.py
+https://github.com/apple/ml-cvnets/blob/main/cvnets/models/classification/vit.py.
 
 Please see ACKNOWLEDGEMENTS for license details.
 """
@@ -13,16 +13,16 @@ from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from timm.models import register_model
 from torch import Tensor, nn
 
-from timm.models import register_model
+from mobileclip import logger
 from mobileclip.modules.common.transformer import (
     PositionalEmbedding,
     TransformerEncoder,
     get_normalization_layer,
 )
 from mobileclip.modules.image.image_projection import SimpleImageProjectionHead
-from mobileclip import logger
 
 
 class ConvNormAct(nn.Module):
@@ -95,29 +95,17 @@ class ConvNormAct(nn.Module):
                     momentum=cfg.get("momentum", 0.1),
                 )
             else:
-                norm_layer = get_normalization_layer(
-                    num_features=out_channels, norm_type=norm_type
-                )
+                norm_layer = get_normalization_layer(num_features=out_channels, norm_type=norm_type)
         elif norm_layer is not None and use_norm:
-            logger.error(
-                f"When use_norm is False, norm_layer should be None, but norm_layer={norm_layer} is provided."
-            )
+            logger.error(f"When use_norm is False, norm_layer should be None, but norm_layer={norm_layer} is provided.")
 
         if act_layer is None and use_act:
             act_layer = nn.GELU()  # Default to GELU
         elif act_layer is not None and use_act:
-            logger.error(
-                f"When use_act is False, act_layer should be None, but act_layer={act_layer} is provided."
-            )
+            logger.error(f"When use_act is False, act_layer should be None, but act_layer={act_layer} is provided.")
 
-        if (
-            use_norm
-            and any(param[0] == "bias" for param in norm_layer.named_parameters())
-            and bias
-        ):
-            assert (
-                not bias
-            ), "Do not use bias when using normalization layers with bias."
+        if use_norm and any(param[0] == "bias" for param in norm_layer.named_parameters()) and bias:
+            assert not bias, "Do not use bias when using normalization layers with bias."
 
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size,) * self.ndim
@@ -133,22 +121,12 @@ class ConvNormAct(nn.Module):
         assert isinstance(dilation, Tuple)
 
         if padding is None:
-            padding = (
-                int((kernel_size[i] - 1) / 2) * dilation[i] for i in range(self.ndim)
-            )
+            padding = (int((kernel_size[i] - 1) / 2) * dilation[i] for i in range(self.ndim))
 
         if in_channels % groups != 0:
-            logger.error(
-                "Input channels are not divisible by groups. {}%{} != 0 ".format(
-                    in_channels, groups
-                )
-            )
+            logger.error(f"Input channels are not divisible by groups. {in_channels}%{groups} != 0 ")
         if out_channels % groups != 0:
-            logger.error(
-                "Output channels are not divisible by groups. {}%{} != 0 ".format(
-                    out_channels, groups
-                )
-            )
+            logger.error(f"Output channels are not divisible by groups. {out_channels}%{groups} != 0 ")
 
         block = nn.Sequential()
 
@@ -192,7 +170,7 @@ class ConvNormAct(nn.Module):
 class VisionTransformer(nn.Module):
     """
     This class defines the `Vision Transformer architecture <https://arxiv.org/abs/2010.11929>`_. Our model implementation
-    is inspired from `Early Convolutions Help Transformers See Better <https://arxiv.org/abs/2106.14881>`_
+    is inspired from `Early Convolutions Help Transformers See Better <https://arxiv.org/abs/2106.14881>`_.
 
     .. note::
         Our implementation is different from the original implementation in two ways:
@@ -267,10 +245,7 @@ class VisionTransformer(nn.Module):
 
         use_cls_token = not cfg.get("no_cls_token", False)
         stochastic_dropout = cfg.get("stochastic_dropout", 0.0)
-        per_layer_stochastic_drop_rate = [
-            round(x, 3)
-            for x in np.linspace(0, stochastic_dropout, n_transformer_layers)
-        ]
+        per_layer_stochastic_drop_rate = [round(x, 3) for x in np.linspace(0, stochastic_dropout, n_transformer_layers)]
         transformer_blocks = [
             TransformerEncoder(
                 embed_dim=embed_dim,
@@ -285,9 +260,7 @@ class VisionTransformer(nn.Module):
             for layer_idx in range(n_transformer_layers)
         ]
 
-        self.post_transformer_norm = get_normalization_layer(
-            num_features=embed_dim, norm_type=norm_layer
-        )
+        self.post_transformer_norm = get_normalization_layer(num_features=embed_dim, norm_type=norm_layer)
 
         self.transformer = nn.Sequential(*transformer_blocks)
 
@@ -341,9 +314,7 @@ class VisionTransformer(nn.Module):
         patch_emb = self.emb_dropout(patch_emb)
         return patch_emb, (n_h, n_w)
 
-    def _features_from_transformer(
-        self, x: Tensor, *args, **kwargs
-    ) -> Tuple[Tensor, Tuple[int, int]]:
+    def _features_from_transformer(self, x: Tensor, *args, **kwargs) -> Tuple[Tensor, Tuple[int, int]]:
         # this function extract patch embeddings and then apply transformer module to learn
         # inter-patch representations
 
@@ -357,9 +328,7 @@ class VisionTransformer(nn.Module):
 
         return x, (n_h, n_w)
 
-    def extract_features(
-        self, x: Tensor, *args, **kwargs
-    ) -> Tuple[Tensor, Optional[Tensor]]:
+    def extract_features(self, x: Tensor, *args, **kwargs) -> Tuple[Tensor, Optional[Tensor]]:
         # The extract_features function for ViT returns two outputs: (1) embedding corresponding to CLS token
         # and (2) image embeddings of the shape [B, C, h//o, w//o], where the value of o is typically 16.
         return_image_embeddings = kwargs.get("return_image_embeddings", False)
@@ -374,9 +343,7 @@ class VisionTransformer(nn.Module):
 
         if self.cls_token is not None:
             # [B, N + 1, embed_dim] --> [B, embed_dim], [B, N, embed_dim]
-            cls_embedding, image_embedding = torch.split(
-                x, split_size_or_sections=[1, x.shape[1] - 1], dim=1
-            )
+            cls_embedding, image_embedding = torch.split(x, split_size_or_sections=[1, x.shape[1] - 1], dim=1)
             cls_embedding = cls_embedding.squeeze(1)
         else:
             # [B, N, embed_dim] -> [B, embed_dim]
@@ -388,9 +355,7 @@ class VisionTransformer(nn.Module):
             # reshape image embedding to 4-D tensor
             # [B, N, C] --> [B, C, N]
             image_embedding = image_embedding.transpose(1, 2).contiguous()
-            image_embedding = image_embedding.reshape(
-                image_embedding.shape[0], -1, n_h, n_w
-            )
+            image_embedding = image_embedding.reshape(image_embedding.shape[0], -1, n_h, n_w)
 
             return cls_embedding, image_embedding
         else:

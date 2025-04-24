@@ -27,12 +27,7 @@ def get_curr_time_stamp() -> str:
 
 def error(message: str) -> None:
     time_stamp = get_curr_time_stamp()
-    error_str = (
-        text_colors["error"]
-        + text_colors["bold"]
-        + "ERROR  "
-        + text_colors["end_color"]
-    )
+    error_str = text_colors["error"] + text_colors["bold"] + "ERROR  " + text_colors["end_color"]
 
     # exiting with code -1 does not tell any information about the error (e.g., NaN encountered in the loss).
     # For more descriptive error messages, we replace exit(-1) with sys.exit(ERROR_MESSAGE).
@@ -46,7 +41,7 @@ def error(message: str) -> None:
         traceback.print_stack()
     else:
         traceback.print_exc()
-    sys.exit("{} - {} - {}. Exiting!!!".format(time_stamp, error_str, message))
+    sys.exit(f"{time_stamp} - {error_str} - {message}. Exiting!!!")
 
 
 def color_text(in_text: str) -> str:
@@ -55,10 +50,8 @@ def color_text(in_text: str) -> str:
 
 def log(message: str, end="\n") -> None:
     time_stamp = get_curr_time_stamp()
-    log_str = (
-        text_colors["logs"] + text_colors["bold"] + "LOGS   " + text_colors["end_color"]
-    )
-    print("{} - {} - {}".format(time_stamp, log_str, message), end=end)
+    log_str = text_colors["logs"] + text_colors["bold"] + "LOGS   " + text_colors["end_color"]
+    print(f"{time_stamp} - {log_str} - {message}", end=end)
 
 
 def warning(message: Union[str, Warning]) -> None:
@@ -66,13 +59,8 @@ def warning(message: Union[str, Warning]) -> None:
         message = f"{type(message).__name__}({','.join(map(repr, message.args))}"
 
     time_stamp = get_curr_time_stamp()
-    warn_str = (
-        text_colors["warning"]
-        + text_colors["bold"]
-        + "WARNING"
-        + text_colors["end_color"]
-    )
-    print("{} - {} - {}".format(time_stamp, warn_str, message))
+    warn_str = text_colors["warning"] + text_colors["bold"] + "WARNING" + text_colors["end_color"]
+    print(f"{time_stamp} - {warn_str} - {message}")
 
 
 def ignore_exception_with_warning(message: str) -> None:
@@ -97,23 +85,16 @@ def ignore_exception_with_warning(message: str) -> None:
 
 def info(message: str, print_line: Optional[bool] = False) -> None:
     time_stamp = get_curr_time_stamp()
-    info_str = (
-        text_colors["info"] + text_colors["bold"] + "INFO   " + text_colors["end_color"]
-    )
-    print("{} - {} - {}".format(time_stamp, info_str, message))
+    info_str = text_colors["info"] + text_colors["bold"] + "INFO   " + text_colors["end_color"]
+    print(f"{time_stamp} - {info_str} - {message}")
     if print_line:
         double_dash_line(dashes=150)
 
 
 def debug(message: str) -> None:
     time_stamp = get_curr_time_stamp()
-    log_str = (
-        text_colors["debug"]
-        + text_colors["bold"]
-        + "DEBUG   "
-        + text_colors["end_color"]
-    )
-    print("{} - {} - {}".format(time_stamp, log_str, message))
+    log_str = text_colors["debug"] + text_colors["bold"] + "DEBUG   " + text_colors["end_color"]
+    print(f"{time_stamp} - {log_str} - {message}")
 
 
 def double_dash_line(dashes: Optional[int] = 75) -> None:
@@ -126,24 +107,12 @@ def singe_dash_line(dashes: Optional[int] = 67) -> None:
 
 def print_header(header: str) -> None:
     double_dash_line()
-    print(
-        text_colors["info"]
-        + text_colors["bold"]
-        + "=" * 50
-        + str(header)
-        + text_colors["end_color"]
-    )
+    print(text_colors["info"] + text_colors["bold"] + "=" * 50 + str(header) + text_colors["end_color"])
     double_dash_line()
 
 
 def print_header_minor(header: str) -> None:
-    print(
-        text_colors["warning"]
-        + text_colors["bold"]
-        + "=" * 25
-        + str(header)
-        + text_colors["end_color"]
-    )
+    print(text_colors["warning"] + text_colors["bold"] + "=" * 25 + str(header) + text_colors["end_color"])
 
 
 def disable_printing():

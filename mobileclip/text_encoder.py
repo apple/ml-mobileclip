@@ -8,13 +8,13 @@ from typing import Optional, Sequence
 import torch
 from torch import Tensor, nn
 
+from mobileclip import logger
 from mobileclip.modules.common.transformer import (
     PositionalEmbedding,
     TransformerEncoder,
     get_normalization_layer,
 )
 from mobileclip.modules.text.repmixer import RepMixerBlock
-from mobileclip import logger
 
 
 class TextTransformer(nn.Module):
@@ -31,23 +31,15 @@ class TextTransformer(nn.Module):
         self.projection_dim = projection_dim
 
         # Token embedding layer
-        self.embedding_layer = nn.Embedding(
-            embedding_dim=model_dim, num_embeddings=self.vocab_size
-        )
+        self.embedding_layer = nn.Embedding(embedding_dim=model_dim, num_embeddings=self.vocab_size)
         self.embed_scale = 1.0 if no_scale_embedding else model_dim**-0.5
 
         # Context length
         context_length = cfg["context_length"]
-        assert (
-            context_length is not None
-        ), "Context length can't be None. Please set value accordingly."
+        assert context_length is not None, "Context length can't be None. Please set value accordingly."
 
         self.positional_embedding = (
-            None
-            if no_pos_embedding
-            else PositionalEmbedding(
-                num_embeddings=context_length, embedding_dim=model_dim
-            )
+            None if no_pos_embedding else PositionalEmbedding(num_embeddings=context_length, embedding_dim=model_dim)
         )
 
         self.embedding_dropout = nn.Dropout(p=embed_dropout)
@@ -62,25 +54,15 @@ class TextTransformer(nn.Module):
 
         if not isinstance(ffn_multipliers, Sequence):
             logger.error(
-                "{} expects FFN multipliers as a list, whose length is the same as"
-                " number of transformer layers. Got: {}".format(
-                    self.__class__.__name__, type(ffn_multipliers)
-                )
+                f"{self.__class__.__name__} expects FFN multipliers as a list, whose length is the same as"
+                f" number of transformer layers. Got: {type(ffn_multipliers)}"
             )
-        elif (
-            isinstance(ffn_multipliers, Sequence)
-            and len(ffn_multipliers) != n_transformer_layers
-        ):
+        elif isinstance(ffn_multipliers, Sequence) and len(ffn_multipliers) != n_transformer_layers:
             logger.error(
-                "We need FFN multiplier for each transformer layer. Got {} ffn"
-                " multipliers while number of transformer layers = {}".format(
-                    len(ffn_multipliers), n_transformer_layers
-                )
+                f"We need FFN multiplier for each transformer layer. Got {len(ffn_multipliers)} ffn"
+                f" multipliers while number of transformer layers = {n_transformer_layers}"
             )
-        ffn_dims = [
-            int(math.ceil(model_dim * ffn_mult / 16.0) * 16.0)
-            for ffn_mult in ffn_multipliers
-        ]
+        ffn_dims = [int(math.ceil(model_dim * ffn_mult / 16.0) * 16.0) for ffn_mult in ffn_multipliers]
 
         # Heads for transformer layers
         mha_heads = cfg["n_heads_per_layer"]
@@ -89,17 +71,13 @@ class TextTransformer(nn.Module):
 
         if not isinstance(mha_heads, Sequence):
             logger.error(
-                "{} expects MHA heads as a list, whose length is the same as number of "
-                "transformer layers. Got: {}".format(
-                    self.__class__.__name__, type(mha_heads)
-                )
+                f"{self.__class__.__name__} expects MHA heads as a list, whose length is the same as number of "
+                f"transformer layers. Got: {type(mha_heads)}"
             )
         elif isinstance(mha_heads, Sequence) and len(mha_heads) != n_transformer_layers:
             logger.error(
-                "{} needs MHA heads for each transformer layer. Got {} mha heads while"
-                " number of transformer layers = {}".format(
-                    self.__class__.__name__, len(mha_heads), n_transformer_layers
-                )
+                f"{self.__class__.__name__} needs MHA heads for each transformer layer. Got {len(mha_heads)} mha heads while"
+                f" number of transformer layers = {n_transformer_layers}"
             )
 
         if variant == "base":
@@ -129,15 +107,11 @@ class TextTransformer(nn.Module):
             )
             self.transformer.extend([RepMixerBlock(dim=model_dim)])
         else:
-            raise ValueError("Unrecognized text encoder variant {}".format(variant))
+            raise ValueError(f"Unrecognized text encoder variant {variant}")
 
-        self.final_layer_norm = get_normalization_layer(
-            num_features=model_dim, norm_type=norm_layer
-        )
+        self.final_layer_norm = get_normalization_layer(num_features=model_dim, norm_type=norm_layer)
 
-        self.projection_layer = nn.Parameter(
-            torch.empty(model_dim, self.projection_dim)
-        )
+        self.projection_layer = nn.Parameter(torch.empty(model_dim, self.projection_dim))
         self.model_dim = model_dim
         self.causal_masking = cfg["causal_masking"]
 
@@ -154,9 +128,7 @@ class TextTransformer(nn.Module):
         token_emb = self.embedding_layer(text_tokens)
         seq_len = token_emb.shape[1]
         if self.positional_embedding is not None:
-            token_emb = token_emb + self.positional_embedding(seq_len).to(
-                token_emb.dtype
-            )
+            token_emb = token_emb + self.positional_embedding(seq_len).to(token_emb.dtype)
         token_emb = self.embedding_dropout(token_emb)
         return token_emb
 
@@ -177,7 +149,7 @@ class TextTransformer(nn.Module):
         key_padding_mask: Optional[Tensor] = None,
         return_all_tokens: bool = False,
         *args,
-        **kwargs
+        **kwargs,
     ) -> Tensor:
         """Return text token embeddings.
 
@@ -187,6 +159,7 @@ class TextTransformer(nn.Module):
                 Shape: [batch_size, context_length]
             return_all_tokens: a boolean flag to return all tokens, defaults to False
                 to return only EOT token embedding.
+
         Returns:
             A tensor of [batch_size, context_length, hidden_dim] if return_all_tokens is
             True, otherwise a tensor of [batch_size, hidden_dim].
@@ -198,9 +171,7 @@ class TextTransformer(nn.Module):
         # [1, context_length, context_length]
         attn_mask = None
         if self.causal_masking:
-            attn_mask = self.build_attention_mask(
-                context_length=text_tokens.shape[1], batch_size=text_tokens.shape[0]
-            )
+            attn_mask = self.build_attention_mask(context_length=text_tokens.shape[1], batch_size=text_tokens.shape[0])
             attn_mask = attn_mask.to(device=token_emb.device, dtype=token_emb.dtype)
             key_padding_mask = None
 
@@ -218,9 +189,7 @@ class TextTransformer(nn.Module):
             return token_emb
 
         # Take features from the eot embedding (eot_token is the highest number in each sequence)
-        token_emb = token_emb[
-            torch.arange(text_tokens.shape[0]), text_tokens.argmax(dim=-1)
-        ]
+        token_emb = token_emb[torch.arange(text_tokens.shape[0]), text_tokens.argmax(dim=-1)]
 
         token_emb = token_emb @ self.projection_layer
         return token_emb
@@ -231,7 +200,7 @@ class TextTransformer(nn.Module):
         key_padding_mask: Optional[Tensor] = None,
         return_all_tokens: bool = False,
         *args,
-        **kwargs
+        **kwargs,
     ) -> Tensor:
         # Image-text pair data with single caption
         # [B, CL] --> [B, d]
@@ -240,6 +209,6 @@ class TextTransformer(nn.Module):
             key_padding_mask=key_padding_mask,
             return_all_tokens=return_all_tokens,
             *args,
-            **kwargs
+            **kwargs,
         )
         return text_tokens

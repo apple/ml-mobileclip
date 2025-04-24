@@ -13,7 +13,7 @@ from mobileclip import logger
 
 class GlobalPool(nn.Module):
     """
-    This layers applies global pooling over a 4D or 5D input tensor
+    This layers applies global pooling over a 4D or 5D input tensor.
 
     Args:
         pool_type (Optional[str]): Pooling type. It can be mean, rms, or abs. Default: `mean`
@@ -26,20 +26,10 @@ class GlobalPool(nn.Module):
 
     pool_types = ["mean", "rms", "abs"]
 
-    def __init__(
-        self,
-        pool_type: Optional[str] = "mean",
-        keep_dim: Optional[bool] = False,
-        *args,
-        **kwargs
-    ) -> None:
+    def __init__(self, pool_type: Optional[str] = "mean", keep_dim: Optional[bool] = False, *args, **kwargs) -> None:
         super().__init__()
         if pool_type not in self.pool_types:
-            logger.error(
-                "Supported pool types are: {}. Got {}".format(
-                    self.pool_types, pool_type
-                )
-            )
+            logger.error(f"Supported pool types are: {self.pool_types}. Got {pool_type}")
         self.pool_type = pool_type
         self.keep_dim = keep_dim
 
@@ -79,11 +69,7 @@ class GlobalPool2D(nn.Module):
 
     def forward(self, x: Tensor, *args, **kwargs) -> Tensor:
         # x is of shape [batch, in_dim]
-        assert (
-            x.dim() == 4
-        ), "Input should be 4-dimensional (Batch x in_dim x in_height x in_width). Got: {}".format(
-            x.shape
-        )
+        assert x.dim() == 4, f"Input should be 4-dimensional (Batch x in_dim x in_height x in_width). Got: {x.shape}"
 
         # [batch, in_dim, in_height, in_width] --> [batch, in_dim]
         x = self.pool(x)
@@ -104,9 +90,7 @@ class SimpleImageProjectionHead(nn.Module):
 
     def forward(self, x: Tensor, *args, **kwargs) -> Tensor:
         # x is of shape [batch, in_dim]
-        assert (
-            x.dim() == 2
-        ), "Input should be 2-dimensional (Batch x in_dim). Got: {}".format(x.shape)
+        assert x.dim() == 2, f"Input should be 2-dimensional (Batch x in_dim). Got: {x.shape}"
 
         # [batch, in_dim] x [in_dim, out_dim] --> [batch, out_dim]
         x = x @ self.proj

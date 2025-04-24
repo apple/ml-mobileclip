@@ -4,14 +4,13 @@
 #
 import copy
 from functools import partial
-from typing import List, Tuple, Optional, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
-
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from timm.models.layers import DropPath, trunc_normal_
 from timm.models import register_model
+from timm.models.layers import DropPath, trunc_normal_
 
 from mobileclip.modules.common.mobileone import MobileOneBlock
 from mobileclip.modules.image.replknet import ReparamLargeKernelConv
@@ -39,9 +38,7 @@ default_cfgs = {
 }
 
 
-def convolutional_stem(
-    in_channels: int, out_channels: int, inference_mode: bool = False
-) -> nn.Sequential:
+def convolutional_stem(in_channels: int, out_channels: int, inference_mode: bool = False) -> nn.Sequential:
     """Build convolutional stem with MobileOne blocks.
 
     Args:
@@ -130,11 +127,7 @@ class MHSA(nn.Module):
         N = H * W
         if len(shape) == 4:
             x = torch.flatten(x, start_dim=2).transpose(-2, -1)  # (B, N, C)
-        qkv = (
-            self.qkv(x)
-            .reshape(B, N, 3, self.num_heads, self.head_dim)
-            .permute(2, 0, 3, 1, 4)
-        )
+        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, self.head_dim).permute(2, 0, 3, 1, 4)
         q, k, v = qkv.unbind(0)  # make torchscript happy (cannot use tensor as tuple)
 
         # trick here to make q@k.t more stable
@@ -267,9 +260,7 @@ class RepMixer(nn.Module):
             )
             self.use_layer_scale = use_layer_scale
             if use_layer_scale:
-                self.layer_scale = nn.Parameter(
-                    layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True
-                )
+                self.layer_scale = nn.Parameter(layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if hasattr(self, "reparam_conv"):
@@ -296,15 +287,9 @@ class RepMixer(nn.Module):
             w = self.mixer.id_tensor + self.layer_scale.unsqueeze(-1) * (
                 self.mixer.reparam_conv.weight - self.norm.reparam_conv.weight
             )
-            b = torch.squeeze(self.layer_scale) * (
-                self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias
-            )
+            b = torch.squeeze(self.layer_scale) * (self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias)
         else:
-            w = (
-                self.mixer.id_tensor
-                + self.mixer.reparam_conv.weight
-                - self.norm.reparam_conv.weight
-            )
+            w = self.mixer.id_tensor + self.mixer.reparam_conv.weight - self.norm.reparam_conv.weight
             b = self.mixer.reparam_conv.bias - self.norm.reparam_conv.bias
 
         self.reparam_conv = nn.Conv2d(
@@ -401,7 +386,7 @@ class RepCPE(nn.Module):
         spatial_shape: Union[int, Tuple[int, int]] = (7, 7),
         inference_mode=False,
     ) -> None:
-        """Build reparameterizable conditional positional encoding
+        """Build reparameterizable conditional positional encoding.
 
         Args:
             in_channels: Number of input channels.
@@ -409,17 +394,13 @@ class RepCPE(nn.Module):
             spatial_shape: Spatial shape of kernel for positional encoding. Default: (7, 7)
             inference_mode: Flag to instantiate block in inference mode. Default: ``False``
         """
-        super(RepCPE, self).__init__()
+        super().__init__()
         if isinstance(spatial_shape, int):
             spatial_shape = tuple([spatial_shape] * 2)
         assert isinstance(spatial_shape, Tuple), (
-            f'"spatial_shape" must by a sequence or int, '
-            f"get {type(spatial_shape)} instead."
+            f'"spatial_shape" must by a sequence or int, get {type(spatial_shape)} instead.'
         )
-        assert len(spatial_shape) == 2, (
-            f'Length of "spatial_shape" should be 2, '
-            f"got {len(spatial_shape)} instead."
-        )
+        assert len(spatial_shape) == 2, f'Length of "spatial_shape" should be 2, got {len(spatial_shape)} instead.'
 
         self.spatial_shape = spatial_shape
         self.embed_dim = embed_dim
@@ -531,7 +512,6 @@ class RepMixerBlock(nn.Module):
             layer_scale_init_value: Layer scale value at initialization. Default: 1e-5
             inference_mode: Flag to instantiate block in inference mode. Default: ``False``
         """
-
         super().__init__()
 
         self.token_mixer = RepMixer(
@@ -542,9 +522,7 @@ class RepMixerBlock(nn.Module):
             inference_mode=inference_mode,
         )
 
-        assert mlp_ratio > 0, "MLP ratio should be greater than 0, found: {}".format(
-            mlp_ratio
-        )
+        assert mlp_ratio > 0, f"MLP ratio should be greater than 0, found: {mlp_ratio}"
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.convffn = ConvFFN(
             in_channels=dim,
@@ -559,9 +537,7 @@ class RepMixerBlock(nn.Module):
         # Layer Scale
         self.use_layer_scale = use_layer_scale
         if use_layer_scale:
-            self.layer_scale = nn.Parameter(
-                layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True
-            )
+            self.layer_scale = nn.Parameter(layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True)
 
     def forward(self, x):
         if self.use_layer_scale:
@@ -603,15 +579,12 @@ class AttentionBlock(nn.Module):
             use_layer_scale: Flag to turn on layer scale. Default: ``True``
             layer_scale_init_value: Layer scale value at initialization. Default: 1e-5
         """
-
         super().__init__()
 
         self.norm = norm_layer(dim)
         self.token_mixer = MHSA(dim=dim)
 
-        assert mlp_ratio > 0, "MLP ratio should be greater than 0, found: {}".format(
-            mlp_ratio
-        )
+        assert mlp_ratio > 0, f"MLP ratio should be greater than 0, found: {mlp_ratio}"
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.convffn = ConvFFN(
             in_channels=dim,
@@ -626,12 +599,8 @@ class AttentionBlock(nn.Module):
         # Layer Scale
         self.use_layer_scale = use_layer_scale
         if use_layer_scale:
-            self.layer_scale_1 = nn.Parameter(
-                layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True
-            )
-            self.layer_scale_2 = nn.Parameter(
-                layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True
-            )
+            self.layer_scale_1 = nn.Parameter(layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True)
+            self.layer_scale_2 = nn.Parameter(layer_scale_init_value * torch.ones((dim, 1, 1)), requires_grad=True)
 
     def forward(self, x):
         if self.use_layer_scale:
@@ -680,11 +649,7 @@ def basic_blocks(
     """
     blocks = []
     for block_idx in range(num_blocks[block_index]):
-        block_dpr = (
-            drop_path_rate
-            * (block_idx + sum(num_blocks[:block_index]))
-            / (sum(num_blocks) - 1)
-        )
+        block_dpr = drop_path_rate * (block_idx + sum(num_blocks[:block_index])) / (sum(num_blocks) - 1)
         if token_mixer_type == "repmixer":
             blocks.append(
                 RepMixerBlock(
@@ -713,18 +678,14 @@ def basic_blocks(
                 )
             )
         else:
-            raise ValueError(
-                "Token mixer type: {} not supported".format(token_mixer_type)
-            )
+            raise ValueError(f"Token mixer type: {token_mixer_type} not supported")
     blocks = nn.Sequential(*blocks)
 
     return blocks
 
 
 class FastViT(nn.Module):
-    """
-    This class implements `FastViT architecture <https://arxiv.org/pdf/2303.14189.pdf>`_
-    """
+    """This class implements `FastViT architecture <https://arxiv.org/pdf/2303.14189.pdf>`_."""
 
     def __init__(
         self,
@@ -751,7 +712,6 @@ class FastViT(nn.Module):
         inference_mode=False,
         **kwargs,
     ) -> None:
-
         super().__init__()
 
         self.num_classes = num_classes
@@ -769,11 +729,7 @@ class FastViT(nn.Module):
         for i in range(len(layers)):
             # Add position embeddings if requested
             if pos_embs[i] is not None:
-                network.append(
-                    pos_embs[i](
-                        embed_dims[i], embed_dims[i], inference_mode=inference_mode
-                    )
-                )
+                network.append(pos_embs[i](embed_dims[i], embed_dims[i], inference_mode=inference_mode))
             stage = basic_blocks(
                 embed_dims[i],
                 i,
@@ -819,16 +775,12 @@ class FastViT(nn.Module):
             use_se=True,
             num_conv_branches=1,
         )
-        self.head = (
-            nn.Linear(int(embed_dims[-1] * cls_ratio), num_classes)
-            if num_classes > 0
-            else nn.Identity()
-        )
+        self.head = nn.Linear(int(embed_dims[-1] * cls_ratio), num_classes) if num_classes > 0 else nn.Identity()
         self.apply(self.cls_init_weights)
         self.init_cfg = copy.deepcopy(init_cfg)
 
     def cls_init_weights(self, m: nn.Module) -> None:
-        """Init. for classification"""
+        """Init. for classification."""
         if isinstance(m, nn.Linear):
             trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:

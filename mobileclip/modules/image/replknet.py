@@ -6,14 +6,13 @@ from typing import Tuple
 
 import torch
 import torch.nn as nn
-
 from timm.models.layers import SqueezeExcite
 
 __all__ = ["ReparamLargeKernelConv"]
 
 
 class ReparamLargeKernelConv(nn.Module):
-    """Building Block of RepLKNet
+    """Building Block of RepLKNet.
 
     This class defines overparameterized large kernel conv block
     introduced in `RepLKNet <https://arxiv.org/abs/2203.06717>`_
@@ -45,7 +44,7 @@ class ReparamLargeKernelConv(nn.Module):
             inference_mode: If True, instantiates model in inference mode. Default: ``False``
             activation: Activation module. Default: ``nn.GELU``
         """
-        super(ReparamLargeKernelConv, self).__init__()
+        super().__init__()
 
         self.stride = stride
         self.groups = groups
@@ -75,16 +74,12 @@ class ReparamLargeKernelConv(nn.Module):
                 bias=True,
             )
         else:
-            self.lkb_origin = self._conv_bn(
-                kernel_size=kernel_size, padding=self.padding
-            )
+            self.lkb_origin = self._conv_bn(kernel_size=kernel_size, padding=self.padding)
             if small_kernel is not None:
-                assert (
-                    small_kernel <= kernel_size
-                ), "The kernel size for re-param cannot be larger than the large kernel!"
-                self.small_conv = self._conv_bn(
-                    kernel_size=small_kernel, padding=small_kernel // 2
+                assert small_kernel <= kernel_size, (
+                    "The kernel size for re-param cannot be larger than the large kernel!"
                 )
+                self.small_conv = self._conv_bn(kernel_size=small_kernel, padding=small_kernel // 2)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply forward pass."""
@@ -99,7 +94,7 @@ class ReparamLargeKernelConv(nn.Module):
 
     def get_kernel_bias(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """Method to obtain re-parameterized kernel and bias.
-        Reference: https://github.com/DingXiaoH/RepLKNet-pytorch
+        Reference: https://github.com/DingXiaoH/RepLKNet-pytorch.
 
         Returns:
             Tuple of (kernel, bias) after fusing branches.
@@ -108,9 +103,7 @@ class ReparamLargeKernelConv(nn.Module):
         if hasattr(self, "small_conv"):
             small_k, small_b = self._fuse_bn(self.small_conv.conv, self.small_conv.bn)
             eq_b += small_b
-            eq_k += nn.functional.pad(
-                small_k, [(self.kernel_size - self.small_kernel) // 2] * 4
-            )
+            eq_k += nn.functional.pad(small_k, [(self.kernel_size - self.small_kernel) // 2] * 4)
         return eq_k, eq_b
 
     def reparameterize(self) -> None:
@@ -139,9 +132,7 @@ class ReparamLargeKernelConv(nn.Module):
             self.__delattr__("small_conv")
 
     @staticmethod
-    def _fuse_bn(
-        conv: torch.Tensor, bn: nn.BatchNorm2d
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _fuse_bn(conv: torch.Tensor, bn: nn.BatchNorm2d) -> Tuple[torch.Tensor, torch.Tensor]:
         """Method to fuse batchnorm layer with conv layer.
 
         Args:

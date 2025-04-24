@@ -2,9 +2,9 @@
 # For licensing see accompanying LICENSE file.
 # Copyright (C) 2024 Apple Inc. All Rights Reserved.
 #
-from typing import Union, Tuple
-
 import copy
+from typing import Tuple, Union
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -26,7 +26,7 @@ class SEBlock(nn.Module):
             in_channels: Number of input channels.
             rd_ratio: Input channel reduction ratio.
         """
-        super(SEBlock, self).__init__()
+        super().__init__()
         self.reduce = nn.Conv2d(
             in_channels=in_channels,
             out_channels=int(in_channels * rd_ratio),
@@ -96,7 +96,7 @@ class MobileOneBlock(nn.Module):
             use_scale_branch: Whether to use scale branch. Default: ``True``
             num_conv_branches: Number of linear conv branches.
         """
-        super(MobileOneBlock, self).__init__()
+        super().__init__()
         self.inference_mode = inference_mode
         self.groups = groups
         self.stride = stride
@@ -132,18 +132,14 @@ class MobileOneBlock(nn.Module):
         else:
             # Re-parameterizable skip connection
             self.rbr_skip = (
-                nn.BatchNorm2d(num_features=in_channels)
-                if out_channels == in_channels and stride == 1
-                else None
+                nn.BatchNorm2d(num_features=in_channels) if out_channels == in_channels and stride == 1 else None
             )
 
             # Re-parameterizable conv branches
             if num_conv_branches > 0:
                 rbr_conv = list()
                 for _ in range(self.num_conv_branches):
-                    rbr_conv.append(
-                        self._conv_bn(kernel_size=kernel_size, padding=padding)
-                    )
+                    rbr_conv.append(self._conv_bn(kernel_size=kernel_size, padding=padding))
                 self.rbr_conv = nn.ModuleList(rbr_conv)
             else:
                 self.rbr_conv = None
@@ -214,7 +210,7 @@ class MobileOneBlock(nn.Module):
 
     def _get_kernel_bias(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """Method to obtain re-parameterized kernel and bias.
-        Reference: https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py#L83
+        Reference: https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py#L83.
 
         Returns:
             Tuple of (kernel, bias) after fusing branches.
@@ -247,11 +243,9 @@ class MobileOneBlock(nn.Module):
         bias_final = bias_conv + bias_scale + bias_identity
         return kernel_final, bias_final
 
-    def _fuse_bn_tensor(
-        self, branch: Union[nn.Sequential, nn.BatchNorm2d]
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _fuse_bn_tensor(self, branch: Union[nn.Sequential, nn.BatchNorm2d]) -> Tuple[torch.Tensor, torch.Tensor]:
         """Method to fuse batchnorm layer with preceeding conv layer.
-        Reference: https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py#L95
+        Reference: https://github.com/DingXiaoH/RepVGG/blob/main/repvgg.py#L95.
 
         Args:
             branch: Sequence of ops to be fused.
@@ -281,9 +275,7 @@ class MobileOneBlock(nn.Module):
                     device=branch.weight.device,
                 )
                 for i in range(self.in_channels):
-                    kernel_value[
-                        i, i % input_dim, kernel_size[0] // 2, kernel_size[1] // 2
-                    ] = 1
+                    kernel_value[i, i % input_dim, kernel_size[0] // 2, kernel_size[1] // 2] = 1
                 self.id_tensor = kernel_value
             kernel = self.id_tensor
             running_mean = branch.running_mean

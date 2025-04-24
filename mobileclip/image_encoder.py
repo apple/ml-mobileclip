@@ -7,14 +7,11 @@ from typing import Any
 import torch.nn as nn
 from timm.models import create_model
 
-from mobileclip import models  # Added to register models
 from mobileclip.modules.image.image_projection import GlobalPool2D
 
 
 class MCi(nn.Module):
-    """
-    This class implements `MCi Models <https://arxiv.org/pdf/2311.17049.pdf>`_
-    """
+    """This class implements `MCi Models <https://arxiv.org/pdf/2311.17049.pdf>`_."""
 
     def __init__(self, model_name: str, *args, **kwargs) -> None:
         super().__init__()
@@ -53,15 +50,11 @@ class MCi(nn.Module):
             in_features = image_classifier.in_features
 
         if in_features is None:
-            raise NotImplementedError(
-                f"Cannot get input feature dimension of {image_classifier}."
-            )
+            raise NotImplementedError(f"Cannot get input feature dimension of {image_classifier}.")
         return in_features
 
     @staticmethod
-    def _update_image_classifier(
-        image_classifier: nn.Module, projection_dim: int, *args, **kwargs
-    ) -> nn.Module:
+    def _update_image_classifier(image_classifier: nn.Module, projection_dim: int, *args, **kwargs) -> nn.Module:
         in_features = MCi._get_in_feature_dimension(image_classifier)
         new_img_classifier = GlobalPool2D(in_dim=in_features, out_dim=projection_dim)
         return new_img_classifier

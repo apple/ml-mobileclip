@@ -2,9 +2,10 @@
 # For licensing see accompanying LICENSE file.
 # Copyright (C) 2024 Apple Inc. All Rights Reserved.
 #
-""" Model schema in open_clip format for inference only. """
+"""Model schema in open_clip format for inference only."""
+
 import math
-from typing import Any, Optional, Dict
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn.functional as F
@@ -18,7 +19,7 @@ from .image_encoder import MCi
 
 
 class CLIP(nn.Module):
-    """Base class for multi-modal image-text data"""
+    """Base class for multi-modal image-text data."""
 
     def __init__(self, cfg: Dict, output_dict: bool = False, *args, **kwargs) -> None:
         super().__init__()
@@ -31,9 +32,7 @@ class CLIP(nn.Module):
             model_name=cfg["image_cfg"]["model_name"],
             projection_dim=self.projection_dim,
         )
-        self.text_encoder = TextTransformer(
-            cfg=cfg["text_cfg"], projection_dim=self.projection_dim
-        )
+        self.text_encoder = TextTransformer(cfg=cfg["text_cfg"], projection_dim=self.projection_dim)
         self.logit_scale = nn.Parameter(torch.ones([]) * math.log(1.0 / 0.07))
 
     def _exponentiate_and_clip_logits(self, max_scale: float = 100.0):
@@ -54,19 +53,10 @@ class CLIP(nn.Module):
         return F.normalize(text_features, dim=-1) if normalize else text_features
 
     def forward(
-        self,
-        image: Optional[torch.Tensor] = None,
-        text: Optional[torch.Tensor] = None,
-        *args,
-        **kwargs
+        self, image: Optional[torch.Tensor] = None, text: Optional[torch.Tensor] = None, *args, **kwargs
     ) -> Any:
-
-        image_embeddings = (
-            self.encode_image(image, normalize=True) if image is not None else None
-        )
-        text_embeddings = (
-            self.encode_text(text, normalize=True) if text is not None else None
-        )
+        image_embeddings = self.encode_image(image, normalize=True) if image is not None else None
+        text_embeddings = self.encode_text(text, normalize=True) if text is not None else None
 
         if self.output_dict:
             return {

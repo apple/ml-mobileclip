@@ -2,9 +2,9 @@
 # For licensing see accompanying LICENSE file.
 # Copyright (C) 2024 Apple Inc. All Rights Reserved.
 #
-import os
 import json
-from typing import Optional, Union, Tuple, Any
+import os
+from typing import Any, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -17,10 +17,10 @@ from torchvision.transforms import (
 )
 
 from mobileclip.clip import CLIP
+from mobileclip.modules.common.mobileone import reparameterize_model
 from mobileclip.modules.text.tokenizer import (
     ClipTokenizer,
 )
-from mobileclip.modules.common.mobileone import reparameterize_model
 
 
 def create_model_and_transforms(
@@ -49,7 +49,7 @@ def create_model_and_transforms(
     # Get config from yaml file
     if not os.path.exists(model_cfg_file):
         raise ValueError(f"Unsupported model name: {model_name}")
-    model_cfg = json.load(open(model_cfg_file, "r"))
+    model_cfg = json.load(open(model_cfg_file))
 
     # Build preprocessing transforms for inference
     resolution = model_cfg["image_cfg"]["image_size"]
@@ -89,7 +89,7 @@ def get_tokenizer(model_name: str) -> nn.Module:
     model_cfg_file = os.path.join(configs_dir, model_name + ".json")
 
     # Get config from yaml file
-    model_cfg = json.load(open(model_cfg_file, "r"))
+    model_cfg = json.load(open(model_cfg_file))
 
     # Build tokenizer
     text_tokenizer = ClipTokenizer(model_cfg)

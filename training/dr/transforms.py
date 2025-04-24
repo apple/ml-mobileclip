@@ -11,21 +11,20 @@
 """Extending transformations from torchvision to be reproducible."""
 
 from collections import defaultdict
-from typing import List, OrderedDict, Union, Tuple, Optional, Any, Dict
+from typing import Any, Dict, List, Optional, OrderedDict, Tuple, Union
 
 import torch
-from torch import Tensor
 import torch.nn.parallel
 import torch.optim
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as T
+from torch import Tensor
 from torchvision.transforms import functional as F
 from torchvision.transforms.autoaugment import _apply_op
 
 import training.dr.transforms_base as transforms
 from training.dr.transforms_base import clean_config
-
 
 NO_PARAM = ()
 NO_PARAM_TYPE = Tuple
@@ -48,9 +47,7 @@ class Compressible:
 class Resize(T.Resize, Compressible):
     """Extending PyTorch's Resize to reapply a given transformation."""
 
-    def forward(
-        self, img: Tensor, params: Optional[torch.Size] = None
-    ) -> Tuple[Tensor, torch.Size]:
+    def forward(self, img: Tensor, params: Optional[torch.Size] = None) -> Tuple[Tensor, torch.Size]:
         """Transform an image randomly or reapply based on given parameters."""
         img = super().forward(img)
         return img, self.size
@@ -59,9 +56,7 @@ class Resize(T.Resize, Compressible):
 class CenterCrop(T.CenterCrop, Compressible):
     """Extending PyTorch's CenterCrop to reapply a given transformation."""
 
-    def forward(
-        self, img: Tensor, params: Optional[NO_PARAM_TYPE] = None
-    ) -> Tuple[Tensor, NO_PARAM_TYPE]:
+    def forward(self, img: Tensor, params: Optional[NO_PARAM_TYPE] = None) -> Tuple[Tensor, NO_PARAM_TYPE]:
         """Transform an image randomly or reapply based on given parameters."""
         img = super().forward(img)
         # TODO: can we remove contiguous?
@@ -83,9 +78,7 @@ class RandomCrop(T.RandomCrop, Compressible):
             self.params = super().get_params(*args, **kwargs)
         return self.params
 
-    def forward(
-        self, img: Tensor, params: Optional[Tuple[int, int]] = None
-    ) -> Tuple[Tensor, Tuple[int, int]]:
+    def forward(self, img: Tensor, params: Optional[Tuple[int, int]] = None) -> Tuple[Tensor, Tuple[int, int]]:
         """Transform an image randomly or reapply based on given parameters."""
         self.params = None
         if params is not None:
@@ -101,7 +94,7 @@ class RandomResizedCrop(T.RandomResizedCrop, Compressible):
 
     def __init__(self, *args, **kwargs) -> None:
         """Initialize super and set last parameters to None."""
-        if "interpolation" in kwargs and isinstance(kwargs['interpolation'], str):
+        if "interpolation" in kwargs and isinstance(kwargs["interpolation"], str):
             kwargs["interpolation"] = T.InterpolationMode(kwargs["interpolation"])
         super().__init__(*args, **kwargs)
         self.params = None
@@ -113,7 +106,9 @@ class RandomResizedCrop(T.RandomResizedCrop, Compressible):
         return self.params
 
     def forward(
-        self, img: Tensor, params: Optional[Tuple[int, int, int, int]] = None,
+        self,
+        img: Tensor,
+        params: Optional[Tuple[int, int, int, int]] = None,
         size: Optional[Tuple[int, int]] = None,
     ) -> Tuple[Tensor, Tuple[int, int, int, int]]:
         """Transform an image randomly or reapply based on given parameters."""
@@ -133,9 +128,7 @@ class RandomResizedCrop(T.RandomResizedCrop, Compressible):
 class RandomHorizontalFlip(T.RandomHorizontalFlip, Compressible):
     """Extending PyTorch's RandomHorizontalFlip to reapply a given transformation."""
 
-    def forward(
-        self, img: Tensor, params: Optional[bool] = None
-    ) -> Tuple[Tensor, bool]:
+    def forward(self, img: Tensor, params: Optional[bool] = None) -> Tuple[Tensor, bool]:
         """Transform an image randomly or reapply based on given parameters.
 
         Args:
@@ -211,20 +204,14 @@ class RandAugment(T.RandAugment, Compressible):
                 op_index = int(torch.randint(len(op_meta), (1,)).item())
                 op_name = list(op_meta.keys())[op_index]
                 magnitudes, signed = op_meta[op_name]
-                magnitude = (
-                    float(magnitudes[self.magnitude].item())
-                    if magnitudes.ndim > 0
-                    else 0.0
-                )
+                magnitude = float(magnitudes[self.magnitude].item()) if magnitudes.ndim > 0 else 0.0
                 if signed and torch.randint(2, (1,)):
                     magnitude *= -1.0
                 params += [(op_name, magnitude)]
 
         for i in range(self.num_ops):
             op_name, magnitude = params[i]
-            img = _apply_op(
-                img, op_name, magnitude, interpolation=self.interpolation, fill=fill
-            )
+            img = _apply_op(img, op_name, magnitude, interpolation=self.interpolation, fill=fill)
 
         return img, params
 
@@ -252,9 +239,7 @@ class RandAugment(T.RandAugment, Compressible):
 class RandomErasing(T.RandomErasing, Compressible):
     """Extending PyTorch's RandomErasing to reapply a given transformation."""
 
-    def forward(
-        self, img: Tensor, params: Optional[Tuple] = None, **kwargs
-    ) -> Tuple[Tensor, Tuple]:
+    def forward(self, img: Tensor, params: Optional[Tuple] = None, **kwargs) -> Tuple[Tensor, Tuple]:
         """Transform an image randomly or reapply based on given parameters.
 
         Args:
@@ -280,9 +265,7 @@ class RandomErasing(T.RandomErasing, Compressible):
 class Normalize(T.Normalize, Compressible):
     """PyTorch's Normalize with an extra dummy transformation parameter."""
 
-    def forward(
-        self, *args, params: Optional[NO_PARAM_TYPE] = None, **kwargs
-    ) -> Tuple[Tensor, Tuple]:
+    def forward(self, *args, params: Optional[NO_PARAM_TYPE] = None, **kwargs) -> Tuple[Tensor, Tuple]:
         """Return normalized input and NO_PARAM as parameters."""
         x = super().forward(*args, **kwargs)
         return x, NO_PARAM
@@ -340,9 +323,7 @@ class CutMix(transforms.CutMix, Compressible):
         y: Optional[Tensor] = None,
         y2: Optional[Tensor] = None,
         params: Dict[str, float] = None,
-    ) -> Tuple[
-        Tuple[Tensor, Tensor], Dict[str, Union[float, Tuple[int, int, int, int]]]
-    ]:
+    ) -> Tuple[Tuple[Tensor, Tensor], Dict[str, Union[float, Tuple[int, int, int, int]]]]:
         """Transform an image randomly or reapply based on given parameters."""
         self.params = None
         if params is not None:
@@ -356,7 +337,7 @@ class CutMix(transforms.CutMix, Compressible):
         """Return compressed parameters."""
         if params is None:
             return None
-        return [params[0]]+list(params[1])
+        return [params[0]] + list(params[1])
 
     @staticmethod
     def decompress_params(params: Any) -> Any:
@@ -458,11 +439,7 @@ class Compose:
         """
         params = dict()
         for t_name, t in self.transforms:
-            if after_collate and (
-                t_name in BEFORE_COLLATE_TRANSFORMS
-                and t_name != "uint8"
-                and t_name != "to_tensor"
-            ):
+            if after_collate and (t_name in BEFORE_COLLATE_TRANSFORMS and t_name != "uint8" and t_name != "to_tensor"):
                 # Skip transformations applied in data loader
                 pass
             elif t_name == "cutmix" or t_name == "mixup":
@@ -474,7 +451,7 @@ class Compose:
                 # Apply an augmentation to both images, skip img2 if no mixing
                 img, p = t(img)
                 if img2 is not None:
-                    if t_name == 'random_resized_crop':
+                    if t_name == "random_resized_crop":
                         img2, p2 = t(img2, size=size)
                     else:
                         img2, p2 = t(img2)
@@ -483,7 +460,10 @@ class Compose:
         return img, params
 
     def reapply(
-        self, img: Tensor, params: Dict[str, Any], img2: Tensor = None,
+        self,
+        img: Tensor,
+        params: Dict[str, Any],
+        img2: Tensor = None,
         size: Optional[Tuple[int, int]] = None,
     ) -> Tuple[Tensor, Dict[str, Any]]:
         """Reapply transformations to an image given augmentation parameters.
@@ -513,7 +493,7 @@ class Compose:
                     # Reapply an augmentation to both images, skip img2 if no
                     # mixing
                     if params[t_name][0] is not None:
-                        if t_name == 'random_resized_crop':
+                        if t_name == "random_resized_crop":
                             img, _ = t(img, params=params[t_name][0], size=size)
                         else:
                             img, _ = t(img, params=params[t_name][0])
@@ -529,10 +509,7 @@ class Compose:
         # Save second pair id if mixup or cutmix enabled
         t_names = [t[0] for t in self.transforms]
         if "mixup" in t_names or "cutmix" in t_names:
-            if (
-                params.get("mixup", None) is not None
-                or params.get("cutmix", None) is not None
-            ):
+            if params.get("mixup", None) is not None or params.get("cutmix", None) is not None:
                 params_compressed += [params["id2"]]
                 no_pair = False
             else:
@@ -549,9 +526,7 @@ class Compose:
                 if no_pair:
                     params_compressed += [t.compress_params(p)]
                 else:
-                    params_compressed += [
-                        [t.compress_params(p[0]), t.compress_params(p[1])]
-                    ]
+                    params_compressed += [[t.compress_params(p[0]), t.compress_params(p[1])]]
         return params_compressed
 
     def decompress(self, params_compressed: List[Any]) -> Dict[str, Any]:
@@ -568,9 +543,7 @@ class Compose:
             params_compressed = params_compressed[1:]
 
         # Read parameters for transformations with random parameters
-        with_param_transforms = [(t_name, t)
-                                 for t_name, t in self.transforms
-                                 if t_name not in NO_PARAM_TRANSFORMS]
+        with_param_transforms = [(t_name, t) for t_name, t in self.transforms if t_name not in NO_PARAM_TRANSFORMS]
         for p, (t_name, t) in zip(params_compressed, with_param_transforms):
             if p is None:
                 pass
@@ -607,9 +580,7 @@ def compose_from_config(config: Dict[str, Any]) -> Compose:
     return Compose(transforms)
 
 
-def before_collate_config(
-    config: Dict[str, Dict[str, Any]]
-) -> Dict[str, Dict[str, Any]]:
+def before_collate_config(config: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """Return configs with resize/crop transformations to pass to data loader.
 
     Only transformations that cannot be applied after data collate are
@@ -622,16 +593,12 @@ def before_collate_config(
     return {k: v for k, v in config.items() if k in BEFORE_COLLATE_TRANSFORMS}
 
 
-def after_collate_config(
-    config: Dict[str, Dict[str, Any]]
-) -> Dict[str, Dict[str, Any]]:
+def after_collate_config(config: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """Return configs after excluding transformations from `befor_collate_config`."""
     return {k: v for k, v in config.items() if k not in BEFORE_COLLATE_TRANSFORMS}
 
 
-def before_collate_apply(
-    sample: Tensor, transform: Compose, num_samples: int
-) -> Tuple[Tensor, Tensor]:
+def before_collate_apply(sample: Tensor, transform: Compose, num_samples: int) -> Tuple[Tensor, Tensor]:
     """Return multiple samples applying the transformations.
 
     Args:

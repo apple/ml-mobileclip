@@ -5,7 +5,7 @@
 """
 Implementation of the following modules is borrowed from ml-cvnets repo:
 https://github.com/apple/ml-cvnets/blob/main/cvnets/layers/multi_head_attention.py
-https://github.com/apple/ml-cvnets/blob/main/cvnets/text_encoders/transformer.py
+https://github.com/apple/ml-cvnets/blob/main/cvnets/text_encoders/transformer.py.
 
 Please see ACKNOWLEDGEMENTS for license details.
 """
@@ -21,9 +21,7 @@ from mobileclip import logger
 
 
 class LayerNormFP32(nn.LayerNorm):
-    """
-    Applies `Layer Normalization <https://arxiv.org/abs/1607.06450>`_ over a input tensor with FP32 precision
-    """
+    """Applies `Layer Normalization <https://arxiv.org/abs/1607.06450>`_ over a input tensor with FP32 precision."""
 
     def __init__(
         self,
@@ -89,7 +87,7 @@ class PositionalEmbedding(nn.Module):
 
 
 class LearnablePositionalEmbedding(nn.Module):
-    """Learnable Positional embedding"""
+    """Learnable Positional embedding."""
 
     def __init__(
         self,
@@ -133,18 +131,13 @@ class LearnablePositionalEmbedding(nn.Module):
         return pos_embed.reshape(1, seq_len, self.embedding_dim)
 
     def __repr__(self):
-        return "{}(num_embeddings={}, embedding_dim={}, padding_idx={})".format(
-            self.__class__.__name__,
-            self.num_embeddings,
-            self.embedding_dim,
-            self.padding_idx,
-        )
+        return f"{self.__class__.__name__}(num_embeddings={self.num_embeddings}, embedding_dim={self.embedding_dim}, padding_idx={self.padding_idx})"
 
 
 class MultiHeadAttention(nn.Module):
     """
     This layer applies a multi-head self- or cross-attention as described in
-    `Attention is all you need <https://arxiv.org/abs/1706.03762>`_ paper
+    `Attention is all you need <https://arxiv.org/abs/1706.03762>`_ paper.
 
     Args:
         embed_dim (int): :math:`C_{in}` from an expected input of size :math:`(N, S, C_{in})`
@@ -176,19 +169,13 @@ class MultiHeadAttention(nn.Module):
         super().__init__()
         if embed_dim % num_heads != 0:
             logger.error(
-                "Embedding dim must be divisible by number of heads in {}. Got: embed_dim={} and num_heads={}".format(
-                    self.__class__.__name__, embed_dim, num_heads
-                )
+                f"Embedding dim must be divisible by number of heads in {self.__class__.__name__}. Got: embed_dim={embed_dim} and num_heads={num_heads}"
             )
 
-        self.qkv_proj = nn.Linear(
-            in_features=embed_dim, out_features=3 * embed_dim, bias=bias
-        )
+        self.qkv_proj = nn.Linear(in_features=embed_dim, out_features=3 * embed_dim, bias=bias)
 
         self.attn_dropout = nn.Dropout(p=attn_dropout)
-        self.out_proj = nn.Linear(
-            in_features=embed_dim, out_features=output_dim, bias=bias
-        )
+        self.out_proj = nn.Linear(in_features=embed_dim, out_features=output_dim, bias=bias)
 
         self.head_dim = embed_dim // num_heads
         self.scaling = self.head_dim**-0.5
@@ -198,9 +185,7 @@ class MultiHeadAttention(nn.Module):
         self.use_separate_proj_weight = embed_dim != output_dim
 
     def __repr__(self):
-        return "{}(head_dim={}, num_heads={}, attn_dropout={})".format(
-            self.__class__.__name__, self.head_dim, self.num_heads, self.attn_dropout.p
-        )
+        return f"{self.__class__.__name__}(head_dim={self.head_dim}, num_heads={self.num_heads}, attn_dropout={self.attn_dropout.p})"
 
     def _forward_impl(
         self,
@@ -229,24 +214,16 @@ class MultiHeadAttention(nn.Module):
             query = F.linear(
                 x_q,
                 weight=self.qkv_proj.weight[: self.embed_dim, ...],
-                bias=self.qkv_proj.bias[: self.embed_dim]
-                if self.qkv_proj.bias is not None
-                else None,
+                bias=self.qkv_proj.bias[: self.embed_dim] if self.qkv_proj.bias is not None else None,
             )
             # [N, S, C] --> [N, S, h, c] --> [N, h, S, c]
-            query = (
-                query.reshape(b_sz, S_len, self.num_heads, self.head_dim)
-                .transpose(1, 2)
-                .contiguous()
-            )
+            query = query.reshape(b_sz, S_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
             # [N, T, C] --> [N, T, 2C]
             kv = F.linear(
                 x_kv,
                 weight=self.qkv_proj.weight[self.embed_dim :, ...],
-                bias=self.qkv_proj.bias[self.embed_dim :]
-                if self.qkv_proj.bias is not None
-                else None,
+                bias=self.qkv_proj.bias[self.embed_dim :] if self.qkv_proj.bias is not None else None,
             )
             # [N, T, 2C] --> [N, T, 2, h, c]
             kv = kv.reshape(b_sz, T_len, 2, self.num_heads, self.head_dim)
@@ -270,8 +247,8 @@ class MultiHeadAttention(nn.Module):
                 batch_size,
                 num_src_tokens,
                 num_tgt_tokens,
-            ], "Shape of attention mask should be [{}, {}, {}]. Got: {}".format(
-                batch_size, num_src_tokens, num_tgt_tokens, attn_mask.shape
+            ], (
+                f"Shape of attention mask should be [{batch_size}, {num_src_tokens}, {num_tgt_tokens}]. Got: {attn_mask.shape}"
             )
             # [N, S, T] --> [N, 1, S, T]
             attn_mask = attn_mask.unsqueeze(1)
@@ -283,13 +260,11 @@ class MultiHeadAttention(nn.Module):
             assert key_padding_mask.dim() == 2 and list(key_padding_mask.shape) == [
                 batch_size,
                 num_tgt_tokens,
-            ], "Key_padding_mask should be 2-dimension with shape [{}, {}]. Got: {}".format(
-                batch_size, num_tgt_tokens, key_padding_mask.shape
+            ], (
+                f"Key_padding_mask should be 2-dimension with shape [{batch_size}, {num_tgt_tokens}]. Got: {key_padding_mask.shape}"
             )
             attn = attn.masked_fill(
-                key_padding_mask.unsqueeze(1)
-                .unsqueeze(2)
-                .to(torch.bool),  # [N, T] --> [N, 1, 1, T]
+                key_padding_mask.unsqueeze(1).unsqueeze(2).to(torch.bool),  # [N, T] --> [N, 1, 1, T]
                 float("-inf"),
             )
 
@@ -358,7 +333,6 @@ class TransformerEncoder(nn.Module):
         *args,
         **kwargs,
     ) -> None:
-
         super().__init__()
 
         # Build attention layer
@@ -370,18 +344,14 @@ class TransformerEncoder(nn.Module):
         )
 
         self.pre_norm_mha = nn.Sequential(
-            get_normalization_layer(
-                norm_type=transformer_norm_layer, num_features=embed_dim
-            ),
+            get_normalization_layer(norm_type=transformer_norm_layer, num_features=embed_dim),
             attn_unit,
             nn.Dropout(p=dropout),
         )
 
         act_name = nn.GELU()
         self.pre_norm_ffn = nn.Sequential(
-            get_normalization_layer(
-                norm_type=transformer_norm_layer, num_features=embed_dim
-            ),
+            get_normalization_layer(norm_type=transformer_norm_layer, num_features=embed_dim),
             nn.Linear(in_features=embed_dim, out_features=ffn_latent_dim, bias=True),
             act_name,
             nn.Dropout(p=ffn_dropout),
@@ -395,7 +365,7 @@ class TransformerEncoder(nn.Module):
                 logger.error(
                     "Stochastic dropout and dropout are mutually exclusive. "
                     "Use either of them, but not both."
-                    "Got: {} and {}".format(stochastic_dropout, dropout)
+                    f"Got: {stochastic_dropout} and {dropout}"
                 )
             self.drop_path = StochasticDepth(p=stochastic_dropout, mode="row")
 
@@ -409,17 +379,7 @@ class TransformerEncoder(nn.Module):
         self.norm_type = transformer_norm_layer
 
     def __repr__(self) -> str:
-        return "{}(embed_dim={}, ffn_dim={}, dropout={}, ffn_dropout={}, stochastic_dropout={}, attn_fn={}, act_fn={}, norm_fn={})".format(
-            self.__class__.__name__,
-            self.embed_dim,
-            self.ffn_dim,
-            self.std_dropout,
-            self.ffn_dropout,
-            self.stochastic_dropout,
-            self.attn_fn_name,
-            self.act_fn_name,
-            self.norm_type,
-        )
+        return f"{self.__class__.__name__}(embed_dim={self.embed_dim}, ffn_dim={self.ffn_dim}, dropout={self.std_dropout}, ffn_dropout={self.ffn_dropout}, stochastic_dropout={self.stochastic_dropout}, attn_fn={self.attn_fn_name}, act_fn={self.act_fn_name}, norm_fn={self.norm_type})"
 
     def forward(
         self,
@@ -430,7 +390,6 @@ class TransformerEncoder(nn.Module):
         *args,
         **kwargs,
     ) -> Tensor:
-
         # Multi-head attention
         res = x
         x = self.pre_norm_mha[0](x)  # norm

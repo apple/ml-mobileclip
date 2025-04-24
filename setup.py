@@ -3,9 +3,10 @@
 # Copyright (C) 2024 Apple Inc. All Rights Reserved.
 #
 import os
-from os import path
 from codecs import open
-from setuptools import setup, find_packages
+from os import path
+
+from setuptools import find_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
@@ -16,9 +17,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 def _read_reqs(relpath):
     fullpath = path.join(path.dirname(__file__), relpath)
     with open(fullpath) as f:
-        return [
-            s.strip() for s in f.readlines() if (s.strip() and not s.startswith("#"))
-        ]
+        return [s.strip() for s in f.readlines() if (s.strip() and not s.startswith("#"))]
 
 
 def get_files(path, relative_to="."):
