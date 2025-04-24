@@ -1,30 +1,35 @@
-# MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training
+<a href="https://www.ultralytics.com/"><img src="https://raw.githubusercontent.com/ultralytics/assets/main/logo/Ultralytics_Logotype_Original.svg" width="320" alt="Ultralytics logo"></a>
 
-This is the official repository of
-**[MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training](https://arxiv.org/pdf/2311.17049.pdf). (CVPR 2024)**
+# MobileCLIP: Fast Image-Text Models Through Multi-Modal Reinforced Training
+
+[![Ultralytics Actions](https://github.com/ultralytics/velocity/actions/workflows/format.yml/badge.svg)](https://github.com/ultralytics/velocity/actions/workflows/format.yml)
+[![Ultralytics Discord](https://img.shields.io/discord/1089800235347353640?logo=discord&logoColor=white&label=Discord&color=blue)](https://discord.com/invite/ultralytics)
+[![Ultralytics Forums](https://img.shields.io/discourse/users?server=https%3A%2F%2Fcommunity.ultralytics.com&logo=discourse&label=Forums&color=blue)](https://community.ultralytics.com/)
+[![Ultralytics Reddit](https://img.shields.io/reddit/subreddit-subscribers/ultralytics?style=flat&logo=reddit&logoColor=white&label=Reddit&color=blue)](https://reddit.com/r/ultralytics)
+
+This repository is an Ultralytics fork of Apple's official [MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training](https://arxiv.org/pdf/2311.17049.pdf) (CVPR 2024)  
 _Pavan Kumar Anasosalu Vasu, Hadi Pouransari, Fartash Faghri, Raviteja Vemulapalli, Oncel Tuzel._
-The repository contains code for inference, training, and evaluation of MobileCLIP models trained on DataCompDR datasets.
 
-[//]: # "![MobileCLIP Performance](docs/fig_accuracy_latency.png)"
+It provides code for inference, training, and evaluation of MobileCLIP models trained on DataCompDR datasets.
 
 <p align="center">
 <img src="docs/fig_accuracy_latency.png" alt="Accuracy vs latency figure." width="400"/>
 </p>
 
-- **Update 2024/11/22:** Releasing iOS app to demonstrate the use of our model for real-time zero-shot image classification. See [ios_app](./ios_app/).
-- **Update 2024/06/13:** Releasing the code and scripts to train using [OpenCLIP](https://github.com/mlfoundations/open_clip/tree/main/src/open_clip) on DataCompDR datasets. See [training/](./training/).
-- **Update 2024/06/13:** MobileCLIP models and DataCompDR datasets are now available on HuggingFace in [MobileCLIP/DataCompDR Collection](https://huggingface.co/collections/apple/mobileclip-models-datacompdr-data-665789776e1aa2b59f35f7c8).
+- **Update 2024/11/22:** iOS app released for real-time zero-shot image classification with MobileCLIP. Explore the [iOS app](./ios_app/).
+- **Update 2024/06/13:** Training scripts for [OpenCLIP](https://github.com/mlfoundations/open_clip/tree/main/src/open_clip) on DataCompDR datasets are now available. See [training/](./training/).
+- **Update 2024/06/13:** MobileCLIP models and DataCompDR datasets are hosted on Hugging Face in the [MobileCLIP/DataCompDR Collection](https://huggingface.co/collections/apple/mobileclip-models-datacompdr-data-665789776e1aa2b59f35f7c8).
 
-### Highlights
+## 🚀 Highlights
 
-- Our smallest variant `MobileCLIP-S0` obtains similar zero-shot performance as [OpenAI](https://arxiv.org/abs/2103.00020)'s ViT-B/16 model while being 4.8x faster and 2.8x smaller.
-- `MobileCLIP-S2` obtains better avg zero-shot performance than [SigLIP](https://arxiv.org/abs/2303.15343)'s ViT-B/16 model while being 2.3x faster and 2.1x smaller, and trained with 3x less seen samples.
-- `MobileCLIP-B`(LT) attains zero-shot ImageNet performance of **77.2%** which is significantly better than recent works like [DFN](https://arxiv.org/abs/2309.17425) and [SigLIP](https://arxiv.org/abs/2303.15343) with similar architectures or even [OpenAI's ViT-L/14@336](https://arxiv.org/abs/2103.00020).
-- iOS app to demonstrate the superior performance of our model on a mobile device.
+- The smallest variant, **MobileCLIP-S0**, achieves comparable zero-shot performance to [OpenAI's ViT-B/16](https://arxiv.org/abs/2103.00020) while being 4.8x faster and 2.8x smaller.
+- **MobileCLIP-S2** surpasses [SigLIP's ViT-B/16](https://arxiv.org/abs/2303.15343) in average zero-shot performance, is 2.3x faster and 2.1x smaller, and is trained with 3x fewer seen samples.
+- **MobileCLIP-B (LT)** attains a zero-shot ImageNet accuracy of **77.2%**, outperforming recent models like [DFN](https://arxiv.org/abs/2309.17425), [SigLIP](https://arxiv.org/abs/2303.15343), and even [OpenAI's ViT-L/14@336](https://arxiv.org/abs/2103.00020).
+- Dedicated iOS app demonstrates high performance on mobile devices.
 
-![Examples](ios_app/docs/app_screenshots/examples.png)
+![MobileCLIP iOS App Examples](ios_app/docs/app_screenshots/examples.png)
 
-## Getting Started
+## ⚡ Getting Started
 
 ### Setup
 
@@ -34,15 +39,15 @@ conda activate clipenv
 pip install -e .
 ```
 
-To download pretrained checkpoints follow the code snippet below
+To download pretrained checkpoints:
 
 ```bash
-source get_pretrained_models.sh # Files will be downloaded to `checkpoints` directory.
+source get_pretrained_models.sh # Downloads files to the `checkpoints` directory.
 ```
 
 ### Usage Example
 
-To models from the official repo, follow the code snippet below
+To use models from the official repository:
 
 ```python
 import torch
@@ -67,12 +72,11 @@ with torch.no_grad(), torch.cuda.amp.autocast():
 print("Label probs:", text_probs)
 ```
 
-For an example of loading the data from HuggingFace see
-[hf_dataset_example.py](./hf_dataset_example.py).
+For an example of loading data from Hugging Face, see [hf_dataset_example.py](./hf_dataset_example.py).
 
-### OpenCLIP Support
+## 🔗 OpenCLIP Support
 
-Our models are now natively supported in OpenCLIP. To use MobileCLIP models in OpenCLIP, setup your environment as shown below,
+MobileCLIP models are natively supported in [OpenCLIP](https://github.com/mlfoundations/open_clip). To use them:
 
 ```bash
 conda create -n clipenv python=3.10
@@ -82,7 +86,7 @@ pip install git+https://github.com/mlfoundations/open_clip
 pip install git+https://github.com/huggingface/pytorch-image-models
 ```
 
-To run inference, see example below,
+Example inference:
 
 ```python
 import open_clip
@@ -92,33 +96,34 @@ from mobileclip.modules.common.mobileone import reparameterize_model
 model, _, preprocess = open_clip.create_model_and_transforms("MobileCLIP-S2", pretrained="datacompdr")
 tokenizer = open_clip.get_tokenizer("MobileCLIP-S2")
 
-# For inference/model exporting purposes, please reparameterize first
+# For inference/model exporting, reparameterize first
 model.eval()
 model = reparameterize_model(model)
 
-# ... follow examples in open_clip repo ...
+# ... follow further examples in the OpenCLIP repository ...
 ```
 
-Variants currently available on OpenCLIP,
-`[('MobileCLIP-S1', 'datacompdr'),
-  ('MobileCLIP-S2', 'datacompdr'),
-  ('MobileCLIP-B', 'datacompdr'),
-  ('MobileCLIP-B', 'datacompdr_lt')]`
+Available variants on OpenCLIP:
 
-## Evaluation
+- MobileCLIP-S1 (`datacompdr`)
+- MobileCLIP-S2 (`datacompdr`)
+- MobileCLIP-B (`datacompdr`)
+- MobileCLIP-B (`datacompdr_lt`)
 
-Please find the detailed evaluation results [here](./results).
-To reproduce results, we provide script to perform zero-shot evaluation on ImageNet-1k dataset.
-To evaluate on all the 38 datasets, please follow instructions in [datacomp](https://github.com/mlfoundations/datacomp).
+## 📊 Evaluation
+
+Comprehensive evaluation results are available in the [results directory](./results).  
+To reproduce results, use the provided script for zero-shot evaluation on the ImageNet-1k dataset.  
+For evaluation on all 38 datasets, follow the instructions in the [DataComp repository](https://github.com/mlfoundations/datacomp).
 
 ```bash
-# Run evaluation with single GPU
+# Run evaluation with a single GPU
 python eval/zeroshot_imagenet.py --model-arch mobileclip_s0 --model-path /path/to/mobileclip_s0.pt
 ```
 
-Please refer to [Open CLIP Results](https://github.com/mlfoundations/open_clip/blob/main/docs/openclip_results.csv) to compare with other models.
+Compare with other models using the [OpenCLIP Results CSV](https://github.com/mlfoundations/open_clip/blob/main/docs/openclip_results.csv).
 
-| Model             | # Seen <BR>Samples (B) | # Params (M) <BR> (img + txt) | Latency (ms) <BR> (img + txt) | IN-1k Zero-Shot <BR> Top-1 Acc. (%) | Avg. Perf. (%) <BR> on 38 datasets |                                            Pytorch Checkpoint (url)                                            |
+| Model             | # Seen <br>Samples (B) | # Params (M) <br> (img + txt) | Latency (ms) <br> (img + txt) | IN-1k Zero-Shot <br> Top-1 Acc. (%) | Avg. Perf. (%) <br> on 38 datasets |                                            PyTorch Checkpoint (URL)                                            |
 | :---------------- | :--------------------: | :---------------------------: | :---------------------------: | :---------------------------------: | :--------------------------------: | :------------------------------------------------------------------------------------------------------------: |
 | MobileCLIP-S0     |           13           |          11.4 + 42.4          |           1.5 + 1.6           |                67.8                 |                58.1                |  [mobileclip_s0.pt](https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_s0.pt)  |
 | MobileCLIP-S1     |           13           |          21.5 + 63.4          |           2.5 + 3.3           |                72.6                 |                61.3                |  [mobileclip_s1.pt](https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_s1.pt)  |
@@ -126,13 +131,13 @@ Please refer to [Open CLIP Results](https://github.com/mlfoundations/open_clip/b
 | MobileCLIP-B      |           13           |          86.3 + 63.4          |          10.4 + 3.3           |                76.8                 |                65.2                |   [mobileclip_b.pt](https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_b.pt)   |
 | MobileCLIP-B (LT) |           36           |          86.3 + 63.4          |          10.4 + 3.3           |                77.2                 |                65.8                | [mobileclip_blt.pt](https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_blt.pt) |
 
-Note: MobileCLIP-B(LT) is trained for 300k iterations with constant learning rate schedule and 300k iterations with cosine learning rate schedule.
+**Note:** MobileCLIP-B (LT) is trained for 300k iterations with a constant learning rate schedule and 300k iterations with a cosine learning rate schedule.
 
-## Citation
+## 📚 Citation
 
-If you found this code useful, please cite the following paper:
+If you find this code useful, please cite:
 
-```
+```bibtex
 @InProceedings{mobileclip2024,
   author = {Pavan Kumar Anasosalu Vasu, Hadi Pouransari, Fartash Faghri, Raviteja Vemulapalli, Oncel Tuzel},
   title = {MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training},
@@ -142,6 +147,10 @@ If you found this code useful, please cite the following paper:
 }
 ```
 
-## Acknowledgements
+## 🙏 Acknowledgements
 
-Our codebase is built using multiple opensource contributions, please see [ACKNOWLEDGEMENTS](ACKNOWLEDGEMENTS) for more details.
+This codebase builds upon multiple open-source contributions. See [ACKNOWLEDGEMENTS](ACKNOWLEDGEMENTS) for details.
+
+---
+
+We welcome your contributions! If you have suggestions, improvements, or want to get involved, please open an issue or submit a pull request.
