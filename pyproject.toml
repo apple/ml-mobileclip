@@ -56,8 +56,15 @@ Homepage = "https://github.com/apple/ml-mobileclip"
 [tool.setuptools]
 # Package discovery configuration
 packages = {find = {include = ["mobileclip*"]}}  # Auto-discover all mobileclip packages
-include-package-data = true  # Include non-Python files from MANIFEST.in
+include-package-data = true  # Include non-Python files from MANIFEST.in or package_data
+
+# Include all JSON and other data files
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.txt", "*.yaml", "*.yml"]  # Include these file types in all packages
 
 [tool.setuptools.data-files]
-# Additional data files to include in the distribution
-"model-config" = ["mobileclip/configs/*"]  # Model configuration files
+# Recursively include all JSON config files (equivalent to get_files function in setup.py)
+"model-config" = [
+    "mobileclip/configs/*.json",
+    "mobileclip/configs/**/*.json"
+]  # Model configuration JSON files with recursive pattern matching
