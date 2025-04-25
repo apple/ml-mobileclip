@@ -1,0 +1,63 @@
+# Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
+
+[build-system]
+# Define the build dependencies and backend for packaging
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Basic project metadata
+name = "mobileclip"
+version = "0.1.0"
+description = "MobileCLIP"
+authors = [
+    {name = "Apple"}
+]
+readme = "README.md"  # Points to README.md for long description
+requires-python = ">=3.8"  # Supports Python>=3.8
+keywords = ["Ultralytics", "Mobile", "CLIP", "pretrained"]  # Keywords for PyPI search
+
+# Project classifiers for PyPI
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+
+# Core package dependencies
+dependencies = [
+    "open-clip-torch>=2.20.0", # Open-source implementation of CLIP
+    "timm>=0.9.5",            # PyTorch Image Models
+]
+
+[project.optional-dependencies]
+full = [
+    "clip-benchmark>=1.4.0",  # Benchmarking tools for CLIP models
+    "datasets",               # Hugging Face datasets library
+    "torch>=2.1.0",           # PyTorch deep learning framework
+    "torchvision>=0.16.0"     # Computer vision library for PyTorch
+]
+
+[project.urls]
+# Project URLs for PyPI page
+Homepage = "https://github.com/apple/ml-mobileclip"
+
+[tool.setuptools]
+# Package discovery configuration
+packages = {find = {include = ["mobileclip*"]}}  # Auto-discover all mobileclip packages
+include-package-data = true  # Include non-Python files from MANIFEST.in
+
+[tool.setuptools.data-files]
+# Additional data files to include in the distribution
+"model-config" = ["mobileclip/configs/*"]  # Model configuration files
