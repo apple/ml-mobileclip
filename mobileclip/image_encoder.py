@@ -7,6 +7,7 @@ from typing import Any
 import torch.nn as nn
 from timm.models import create_model
 
+from mobileclip import models  # noqa added to register models
 from mobileclip.modules.image.image_projection import GlobalPool2D
 
 
