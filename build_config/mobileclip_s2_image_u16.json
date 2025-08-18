@@ -1,0 +1,43 @@
+{
+  "model_type": "ONNX",
+  "npu_mode": "NPU3",
+  "quant": {
+    "input_configs": [
+      {
+        "tensor_name": "DEFAULT",
+        "calibration_dataset": "./dataset_v04.zip",
+        "calibration_size": 32,
+        "calibration_mean": [0,0,0],
+        "calibration_std": [255,255,255]
+      }
+    ],
+    "layer_configs": [
+      {
+        "start_tensor_names": ["DEFAULT"],
+        "end_tensor_names": ["DEFAULT"],
+        "data_type": "U16"
+      }
+    ],
+    "enable_smooth_quant": false,
+    "calibration_method": "MinMax",
+    "precision_analysis": true,
+    "precision_analysis_method": "EndToEnd",
+    "precision_analysis_mode": "Reference",
+    "device":"cuda:0"
+  },
+  "input_processors": [
+    {
+      "tensor_name": "DEFAULT",
+      "tensor_format": "RGB",
+      "tensor_layout": "NCHW",
+      "src_layout": "NCHW",
+      "src_dtype": "FP32"
+    }
+  ],
+  "compiler": {
+    "check": 2
+  },
+  "debug": {
+    "dump_frontend_graph": false
+  }
+}

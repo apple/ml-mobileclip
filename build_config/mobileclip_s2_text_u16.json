@@ -1,0 +1,31 @@
+{
+  "model_type": "ONNX",
+  "npu_mode": "NPU3",
+  "quant": {
+    "input_configs": [
+      {
+        "tensor_name": "DEFAULT",
+        "calibration_dataset": "./dataset/text_quant_data.zip",
+        "calibration_size": 32,
+        "calibration_format": "Numpy"
+      }
+    ],
+    "calibration_method": "MinMax",
+    "precision_analysis": true,
+    "precision_analysis_method": "EndToEnd",
+    "precision_analysis_mode": "NPUBackend",
+    "transformer_opt_level": 0,
+    "layer_configs": [
+      {
+        "start_tensor_names": ["DEFAULT"],
+        "end_tensor_names": ["DEFAULT"],
+        "data_type": "U16"
+      }
+    ]
+  },
+  "input_processors": [],
+  "output_processors": [],
+  "compiler": {
+    "check": 1
+  }
+}

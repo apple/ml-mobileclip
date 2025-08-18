@@ -1,130 +1,105 @@
-# MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training
+# axera.ml-mobileclip
 
-This is the official repository of
-**[MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training](https://arxiv.org/pdf/2311.17049.pdf). (CVPR 2024)**
-*Pavan Kumar Anasosalu Vasu, Hadi Pouransari, Fartash Faghri, Raviteja Vemulapalli, Oncel Tuzel.*
-The repository contains code for inference, training, and evaluation of MobileCLIP models trained on DataCompDR datasets.
+[ml-mobileclip](https://github.com/apple/ml-mobileclip) demo on axera
 
-[//]: # (![MobileCLIP Performance]&#40;docs/fig_accuracy_latency.png&#41;)
-<p align="center">
-<img src="docs/fig_accuracy_latency.png" alt="Accuracy vs latency figure." width="400"/>
-</p>
+## 支持平台
+- [x] AX650N
+- [ ] AX630C
 
-- **Update 2024/11/22:** Releasing iOS app to demonstrate the use of our model for real-time zero-shot image classification. See [ios_app](./ios_app/).
-- **Update 2024/06/13:** Releasing the code and scripts to train using [OpenCLIP](https://github.com/mlfoundations/open_clip/tree/main/src/open_clip) on DataCompDR datasets. See [training/](./training/).
-- **Update 2024/06/13:** MobileCLIP models and DataCompDR datasets are now available on HuggingFace in [MobileCLIP/DataCompDR Collection](https://huggingface.co/collections/apple/mobileclip-models-datacompdr-data-665789776e1aa2b59f35f7c8).
+### env
 
-### Highlights
-* Our smallest variant `MobileCLIP-S0` obtains similar zero-shot performance as [OpenAI](https://arxiv.org/abs/2103.00020)'s ViT-B/16 model while being 4.8x faster and 2.8x smaller.
-* `MobileCLIP-S2` obtains better avg zero-shot performance than [SigLIP](https://arxiv.org/abs/2303.15343)'s ViT-B/16 model while being 2.3x faster and 2.1x smaller, and trained with 3x less seen samples.
-* `MobileCLIP-B`(LT) attains zero-shot ImageNet performance of **77.2%** which is significantly better than recent works like [DFN](https://arxiv.org/abs/2309.17425) and [SigLIP](https://arxiv.org/abs/2303.15343) with similar architectures or even [OpenAI's ViT-L/14@336](https://arxiv.org/abs/2103.00020).
-* iOS app to demonstrate the superior performance of our model on a mobile device.
-
-![Examples](ios_app/docs/app_screenshots/examples.png)
-
-## Getting Started
-
-### Setup
-```bash
+根据原repo配置运行环境
+```
 conda create -n clipenv python=3.10
 conda activate clipenv
 pip install -e .
 ```
-To download pretrained checkpoints follow the code snippet below
-```bash
-source get_pretrained_models.sh   # Files will be downloaded to `checkpoints` directory.
+补充onnx相关包
+```
+pip install onnx
+pip install onnxruntime
+pip install opencv-python
 ```
 
-### Usage Example
-To models from the official repo, follow the code snippet below
-```python
-import torch
-from PIL import Image
-import mobileclip
+### 导出模型(PyTorch -> ONNX)
+```
+python export_onnx.py
+```
+导出成功后会生成两个onnx模型:
+- image encoder: mobileclip_s2_image_encoder.onnx
+- text encoder: mobileclip_s2_text_encoder.onnx
 
-model, _, preprocess = mobileclip.create_model_and_transforms('mobileclip_s0', pretrained='/path/to/mobileclip_s0.pt')
-tokenizer = mobileclip.get_tokenizer('mobileclip_s0')
 
-image = preprocess(Image.open("docs/fig_accuracy_latency.png").convert('RGB')).unsqueeze(0)
-text = tokenizer(["a diagram", "a dog", "a cat"])
+#### 转换模型(ONNX -> Axera)
+使用模型转换工具 Pulsar2 将 ONNX 模型转换成适用于 Axera 的 NPU 运行的模型文件格式 .axmodel，通常情况下需要经过以下两个步骤：
 
-with torch.no_grad(), torch.cuda.amp.autocast():
-    image_features = model.encode_image(image)
-    text_features = model.encode_text(text)
-    image_features /= image_features.norm(dim=-1, keepdim=True)
-    text_features /= text_features.norm(dim=-1, keepdim=True)
+- 生成适用于该模型的 PTQ 量化校准数据集
+- 使用 Pulsar2 build 命令集进行模型转换（PTQ 量化、编译），更详细的使用说明请参考[AXera Pulsar2 工具链指导手册](https://pulsar2-docs.readthedocs.io/zh-cn/latest/index.html)
 
-    text_probs = (100.0 * image_features @ text_features.T).softmax(dim=-1)
 
-print("Label probs:", text_probs)
+#### 量化数据集准备
+此处仅用作demo，建议使用实际参与训练的数据
+- image数据:
+
+    下载[dataset_v04.zip](https://github.com/user-attachments/files/20480889/dataset_v04.zip)或自行准备
+
+- text数据:
+    ```
+    python gen_text_cali_dataset.py
+    cd dataset
+    zip -r text_quant_data.zip text_quant_data/
+    ```
+最终得到两个数据集：
+
+\- dataset/dataset_v04.zip
+
+\- dataset/text_quant_data.zip
+
+注：对分数据集建议用实际使用场景的数据，此处仅用于演示
+
+#### 模型编译
+修改配置文件
+检查config.json 中 calibration_dataset 字段，将该字段配置的路径改为上一步准备的量化数据集存放路径
+
+
+
+在编译环境中，执行pulsar2 build参考命令：
+```
+# image encoder
+pulsar2 build --config build_config/mobileclip_s2_image_u16.json --input models/mobileclip_s2_image_encoder.onnx --output_dir build_output/image_encoder --output_name mobileclip_s2_image_encoder.axmodel
+
+# text encoder
+pulsar2 build --config build_config/mobileclip_s2_text_u16.json --input models/mobileclip_s2_text_encoder.onnx --output_dir build_output/text_encoder --output_name mobileclip_s2_text_encoder.axmodel
 ```
 
-For an example of loading the data from HuggingFace see 
-[hf_dataset_example.py](./hf_dataset_example.py).
-
-### OpenCLIP Support
-Our models are now natively supported in OpenCLIP. To use MobileCLIP models in OpenCLIP, setup your environment as shown below,
-```bash
-conda create -n clipenv python=3.10
-conda activate clipenv
-
-pip install git+https://github.com/mlfoundations/open_clip
-pip install git+https://github.com/huggingface/pytorch-image-models
-```
-
-To run inference, see example below,
-```python
-import open_clip
-from mobileclip.modules.common.mobileone import reparameterize_model
- 
-model, _, preprocess = open_clip.create_model_and_transforms('MobileCLIP-S2', pretrained='datacompdr')
-tokenizer = open_clip.get_tokenizer('MobileCLIP-S2')
-
-# For inference/model exporting purposes, please reparameterize first
-model.eval() 
-model = reparameterize_model(model)
-
-# ... follow examples in open_clip repo ...
-```
-Variants currently available on OpenCLIP, 
- `[('MobileCLIP-S1', 'datacompdr'),
-  ('MobileCLIP-S2', 'datacompdr'),
-  ('MobileCLIP-B', 'datacompdr'),
-  ('MobileCLIP-B', 'datacompdr_lt')]`
+编译完成后得到两个axmodel模型：
 
 
-## Evaluation
-Please find the detailed evaluation results [here](./results).
-To reproduce results, we provide script to perform zero-shot evaluation on ImageNet-1k dataset. 
-To evaluate on all the 38 datasets, please follow instructions in [datacomp](https://github.com/mlfoundations/datacomp).
-```bash
-# Run evaluation with single GPU
-python eval/zeroshot_imagenet.py --model-arch mobileclip_s0 --model-path /path/to/mobileclip_s0.pt
-```
+\- mobileclip_s2_image_encoder.axmodel
 
-Please refer to [Open CLIP Results](https://github.com/mlfoundations/open_clip/blob/main/docs/openclip_results.csv) to compare with other models.
+\- mobileclip_s2_text_encoder.axmodel
 
-| Model             |   # Seen <BR>Samples (B)   | # Params (M) <BR> (img + txt) | Latency (ms) <BR> (img + txt)  | IN-1k Zero-Shot <BR> Top-1 Acc. (%) | Avg. Perf. (%) <BR> on 38 datasets |                                            Pytorch Checkpoint (url)                                            |
-|:------------------|:----------------------:|:-----------------------------:|:------------------------------:|:-----------------------------------:|:----------------------------------:|:--------------------------------------------------------------------------------------------------------------:|
-| MobileCLIP-S0     |           13           |          11.4 + 42.4          |           1.5 + 1.6            |                67.8                 |                58.1                |  [mobileclip_s0.pt](https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_s0.pt)  |
-| MobileCLIP-S1     |           13           |          21.5 + 63.4          |           2.5 + 3.3           |                72.6                 |                61.3                |  [mobileclip_s1.pt](https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_s1.pt)  |
-| MobileCLIP-S2     |           13           |          35.7 + 63.4          |           3.6 + 3.3           |                74.4                 |                63.7                |  [mobileclip_s2.pt](https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_s2.pt)  |
-| MobileCLIP-B      |           13           |          86.3 + 63.4          |          10.4 + 3.3           |                76.8                 |                65.2                |   [mobileclip_b.pt](https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_b.pt)   |
-| MobileCLIP-B (LT) |           36           |          86.3 + 63.4          |          10.4 + 3.3           |                77.2                 |                65.8                | [mobileclip_blt.pt](https://docs-assets.developer.apple.com/ml-research/datasets/mobileclip/mobileclip_blt.pt) |
 
-Note: MobileCLIP-B(LT) is trained for 300k iterations with constant learning rate schedule and 300k iterations with cosine learning rate schedule.
+### Python API 运行
+需基于[PyAXEngine](https://github.com/AXERA-TECH/pyaxengine)在AX650N上进行部署
 
-## Citation
-If you found this code useful, please cite the following paper:
-```
-@InProceedings{mobileclip2024,
-  author = {Pavan Kumar Anasosalu Vasu, Hadi Pouransari, Fartash Faghri, Raviteja Vemulapalli, Oncel Tuzel},
-  title = {MobileCLIP: Fast Image-Text Models through Multi-Modal Reinforced Training},
-  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-  month = {June},
-  year = {2024},
-}
-```
+demo基于原repo中的提取图文特征向量并计算相似度，将两个axmodel和run_onboard中的文件拷贝到开发板上后，运行run_axmodel.py文件
 
-## Acknowledgements
-Our codebase is built using multiple opensource contributions, please see [ACKNOWLEDGEMENTS](ACKNOWLEDGEMENTS) for more details. 
+1. 输入图片：
+
+    ![](docs/fig_accuracy_latency.png)
+
+2. 输入文本：
+
+    ["a diagram", "a dog", "a cat"]
+
+3. 输出类别置信度：
+
+    Label probs: [[0.8929832  0.05270111 0.05431566]]
+
+
+
+## 技术讨论
+
+- Github issues
+- QQ 群: 139953715

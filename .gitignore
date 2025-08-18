@@ -131,3 +131,7 @@ dmypy.json
 # macOS
 **/.DS_Store
 
+build_output/*
+dataset/*
+huggingface
+models/*
