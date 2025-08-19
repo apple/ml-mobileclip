@@ -32,7 +32,7 @@ text = text.to(torch.int32)
 onnx_image_encoder = axe.InferenceSession("mobileclip_s2_image_encoder.axmodel")
 onnx_text_encoder = axe.InferenceSession("mobileclip_s2_text_encoder.axmodel")
 
-image_features = onnx_image_encoder.run(["unnorm_image_features"],{"image":np.array(image)})[0]
+image_features = onnx_image_encoder.run(["unnorm_image_features"],{"image":np.array(image*255)})[0]
 text_features = []
 for i in range(text.shape[0]):
     text_feature = onnx_text_encoder.run(["unnorm_text_features"],{"text":np.array([text[i]])})[0]

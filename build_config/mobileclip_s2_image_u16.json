@@ -5,25 +5,35 @@
     "input_configs": [
       {
         "tensor_name": "DEFAULT",
-        "calibration_dataset": "./dataset_v04.zip",
+        "calibration_dataset": "./dataset/imagenet-calib.tar",
         "calibration_size": 32,
-        "calibration_mean": [0,0,0],
-        "calibration_std": [255,255,255]
+        "calibration_mean": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "calibration_std": [
+          255.0,
+          255.0,
+          255.0
+        ]
       }
     ],
-    "layer_configs": [
-      {
-        "start_tensor_names": ["DEFAULT"],
-        "end_tensor_names": ["DEFAULT"],
-        "data_type": "U16"
-      }
-    ],
-    "enable_smooth_quant": false,
     "calibration_method": "MinMax",
     "precision_analysis": true,
     "precision_analysis_method": "EndToEnd",
-    "precision_analysis_mode": "Reference",
-    "device":"cuda:0"
+    "transformer_opt_level": 1,
+    "layer_configs": [
+      {
+		"start_tensor_names": ["DEFAULT"],
+		"end_tensor_names": ["DEFAULT"],
+		"data_type": "U16",
+		"weight_data_type": "S16"
+      }
+    ],
+	"conv_bias_data_type": "FP32",
+	"precision_analysis_mode": "NPUBackend",
+	// "disable_auto_refine_scale": true
   },
   "input_processors": [
     {
@@ -35,9 +45,6 @@
     }
   ],
   "compiler": {
-    "check": 2
-  },
-  "debug": {
-    "dump_frontend_graph": false
+    "check": 0
   }
 }
