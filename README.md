@@ -41,7 +41,7 @@ python export_onnx.py
 此处仅用作demo，建议使用实际参与训练的数据
 - image数据:
 
-    下载[dataset_v04.zip](https://github.com/user-attachments/files/20480889/dataset_v04.zip)或自行准备
+    dataset/imagenet-calib.tar
 
 - text数据:
     ```
