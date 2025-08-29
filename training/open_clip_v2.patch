@@ -1,0 +1,891 @@
+diff --git a/src/open_clip/__init__.py b/src/open_clip/__init__.py
+index d0419b4..49b5911 100644
+--- a/src/open_clip/__init__.py
++++ b/src/open_clip/__init__.py
+@@ -16,3 +16,4 @@ from .tokenizer import SimpleTokenizer, tokenize, decode
+ from .transform import image_transform, AugmentationCfg
+ from .zero_shot_classifier import build_zero_shot_classifier, build_zero_shot_classifier_legacy
+ from .zero_shot_metadata import OPENAI_IMAGENET_TEMPLATES, SIMPLE_IMAGENET_TEMPLATES, IMAGENET_CLASSNAMES
++from .mobileclip2 import fastvit_mci3, fastvit_mci4
+diff --git a/src/open_clip/factory.py b/src/open_clip/factory.py
+index e8a8c70..4df090b 100644
+--- a/src/open_clip/factory.py
++++ b/src/open_clip/factory.py
+@@ -12,9 +12,11 @@ import torch
+ 
+ from .convert import convert_state_dict
+ from .model import CLIP, CustomTextCLIP, convert_weights_to_lp, convert_to_custom_text_state_dict,\
+-    resize_pos_embed, get_cast_dtype, resize_text_pos_embed, set_model_preprocess_cfg
++    resize_pos_embed, get_cast_dtype, resize_text_pos_embed, set_model_preprocess_cfg,\
++    Ensemble
+ from .coca_model import CoCa
+-from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SigLipLoss
++from .loss import ClipLoss, DistillClipLoss, CoCaLoss, SigLipLoss, DRClipLoss,\
++    DistillSigLipLoss
+ from .pretrained import is_pretrained_cfg, get_pretrained_cfg, download_pretrained,\
+     list_pretrained_tags_by_model, download_pretrained_from_hf
+ from .transform import image_transform_v2, AugmentationCfg, PreprocessCfg, merge_preprocess_dict, merge_preprocess_kwargs
+@@ -431,15 +433,32 @@ def create_model(
+ 
+ 
+ def create_loss(args):
+-    if args.distill:
+-        return DistillClipLoss(
+-            local_loss=args.local_loss,
+-            gather_with_grad=args.gather_with_grad,
+-            cache_labels=True,
+-            rank=args.rank,
+-            world_size=args.world_size,
+-            use_horovod=args.horovod,
+-        )
++    if args.distill and not args.dataset_reinforcement:
++        if args.siglip:
++            assert not args.horovod, "Horovod not currently supported for SigLip"
++            return DistillSigLipLoss(
++                rank=args.rank,
++                world_size=args.world_size,
++                teacher_dimension=args.distill_teacher_dimension,
++                distill_loss_weights=args.distill_loss_weights,
++                average_after_sigmoid=args.distill_average_after_softmax,
++                dist_logit_scale=args.distill_logit_scale,
++                dist_logit_bias=args.distill_logit_bias,
++            )
++        else:
++            return DistillClipLoss(
++                local_loss=args.local_loss,
++                gather_with_grad=args.gather_with_grad,
++                cache_labels=True,
++                rank=args.rank,
++                world_size=args.world_size,
++                use_horovod=args.horovod,
++                teacher_dimension=args.distill_teacher_dimension,
++                distill_loss_weights=args.distill_loss_weights,
++                average_after_softmax=args.distill_average_after_softmax,
++                dist_logit_scale=args.distill_logit_scale,
++                dist_logit_bias=args.distill_logit_bias,
++            )
+     elif "coca" in args.model.lower():
+         return CoCaLoss(
+             caption_loss_weight=args.coca_caption_loss_weight,
+@@ -458,7 +477,19 @@ def create_loss(args):
+             world_size=args.world_size,
+             dist_impl=args.loss_dist_impl,  # siglip has multiple distributed implementations to choose from
+         )
+-
++    elif args.dataset_reinforcement:
++        return DRClipLoss(
++            local_loss=args.local_loss,
++            gather_with_grad=args.gather_with_grad,
++            cache_labels=True,
++            rank=args.rank,
++            world_size=args.world_size,
++            use_horovod=args.horovod,
++            teacher_dimension=args.distill_teacher_dimension,
++            distill_loss_weights=args.distill_loss_weights,
++            average_after_softmax=args.distill_average_after_softmax,
++            dist_logit_scale=args.distill_logit_scale,
++        )
+     return ClipLoss(
+         local_loss=args.local_loss,
+         gather_with_grad=args.gather_with_grad,
+@@ -470,6 +501,23 @@ def create_loss(args):
+ 
+ 
+ def create_model_and_transforms(
++        model_name: str,
++        pretrained: Optional[str] = None,
++        *args, **kwargs):
++    if ',' not in model_name:
++        return create_model_and_transforms_core(model_name, pretrained, *args, **kwargs)
++
++    members = []
++    for m, p in zip(model_name.split(','), pretrained.split(',')):
++        model, preprocess_train, preprocess_val = create_model_and_transforms_core(
++            m, p, *args, **kwargs
++        )
++        members += [model]
++    model = Ensemble(members)
++    return model, preprocess_train, preprocess_val
++
++
++def create_model_and_transforms_core(
+         model_name: str,
+         pretrained: Optional[str] = None,
+         precision: str = 'fp32',
+diff --git a/src/open_clip/loss.py b/src/open_clip/loss.py
+index b3e6dd2..ef36686 100644
+--- a/src/open_clip/loss.py
++++ b/src/open_clip/loss.py
+@@ -3,6 +3,7 @@ from typing import Optional
+ import torch
+ import torch.nn as nn
+ from torch.nn import functional as F
++import numpy as np
+ 
+ try:
+     import torch.distributed.nn
+@@ -186,8 +187,62 @@ class CoCaLoss(ClipLoss):
+ 
+ class DistillClipLoss(ClipLoss):
+ 
++    def __init__(
++        self,
++        *args,
++        teacher_dimension=[-1],
++        distill_loss_weights=[1.0, 1.0],
++        average_after_softmax=False,
++        dist_logit_scale=None,
++        dist_logit_bias=None,
++        **kwargs
++    ):
++        super().__init__(*args, **kwargs)
++        self.dist_logit_scale = dist_logit_scale
++        self.dist_logit_bias = dist_logit_bias
++        self.teacher_dimension = teacher_dimension
++        self.distill_loss_weights = distill_loss_weights
++        self.average_after_softmax = average_after_softmax
++
++    def get_logits_ensemble(self, feat_a, feat_b, logit_scale, logit_bias):
++        """Compute sum_t Softmax(a_t @ b_t^T) for between features from an ensemble model."""
++        dims = self.teacher_dimension
++        num_members = len(dims)
++        dims = np.cumsum([0] + dims)
++        logit_scale = logit_scale or [1.0]*num_members
++        logit_bias = logit_bias or [0.0]*num_members
++        logits = [
++            logit_scale[i] * (feat_a[:, dims[i]:dims[i+1]]
++                              @ feat_b[:, dims[i]:dims[i+1]].T)
++            + logit_bias[i]
++            for i in range(num_members)
++        ]
++        logits = sum([F.softmax(logit, dim=1) for logit in logits]) / num_members
++        return logits
++
++    def get_logits_dist(self, image_features, text_features, logit_scale, logit_bias=0):
++        if self.world_size > 1:
++            all_image_features, all_text_features = gather_features(
++                image_features, text_features,
++                self.local_loss, self.gather_with_grad, self.rank, self.world_size, self.use_horovod)
++
++            if self.local_loss:
++                logits_per_image = self.get_logits_ensemble(image_features, all_text_features, logit_scale, logit_bias)
++                logits_per_text = self.get_logits_ensemble(text_features, all_image_features, logit_scale, logit_bias)
++            else:
++                logits_per_image = self.get_logits_ensemble(all_image_features, all_text_features, logit_scale, logit_bias)
++                logits_per_text = logits_per_image.T
++        else:
++            logits_per_image = self.get_logits_ensemble(image_features, text_features, logit_scale, logit_bias)
++            logits_per_text = self.get_logits_ensemble(text_features, image_features, logit_scale, logit_bias)
++
++        return logits_per_image, logits_per_text
++
+     def dist_loss(self, teacher_logits, student_logits):
+-        return -(teacher_logits.softmax(dim=1) * student_logits.log_softmax(dim=1)).sum(dim=1).mean(dim=0)
++        if self.average_after_softmax:
++            return -(teacher_logits * student_logits.log_softmax(dim=1)).sum(dim=1).mean(dim=0)
++        else:
++            return -(teacher_logits.softmax(dim=1) * student_logits.log_softmax(dim=1)).sum(dim=1).mean(dim=0)
+ 
+     def forward(
+             self,
+@@ -196,26 +251,33 @@ class DistillClipLoss(ClipLoss):
+             logit_scale,
+             dist_image_features,
+             dist_text_features,
+-            dist_logit_scale,
++            dist_logit_scale=None,
++            dist_logit_bias=None,
+             output_dict=False,
+     ):
+         logits_per_image, logits_per_text = \
+             self.get_logits(image_features, text_features, logit_scale)
+ 
+-        dist_logits_per_image, dist_logits_per_text = \
+-            self.get_logits(dist_image_features, dist_text_features, dist_logit_scale)
++        dist_logit_scale = self.dist_logit_scale or dist_logit_scale
++
++        if self.average_after_softmax:
++            dist_logits_per_image, dist_logits_per_text = \
++                self.get_logits_dist(dist_image_features, dist_text_features, dist_logit_scale)
++        else:
++            dist_logits_per_image, dist_logits_per_text = \
++                self.get_logits(dist_image_features, dist_text_features, dist_logit_scale)
+ 
+         labels = self.get_ground_truth(image_features.device, logits_per_image.shape[0])
+ 
+         contrastive_loss = (
+             F.cross_entropy(logits_per_image, labels) +
+             F.cross_entropy(logits_per_text, labels)
+-        ) / 2
++        ) / 2 * self.distill_loss_weights[0]
+ 
+         distill_loss = (
+             self.dist_loss(dist_logits_per_image, logits_per_image) +
+             self.dist_loss(dist_logits_per_text, logits_per_text)
+-        ) / 2
++        ) / 2 * self.distill_loss_weights[1]
+ 
+         if output_dict:
+             return {"contrastive_loss": contrastive_loss, "distill_loss": distill_loss}
+@@ -223,6 +285,51 @@ class DistillClipLoss(ClipLoss):
+         return contrastive_loss, distill_loss
+ 
+ 
++class DRClipLoss(DistillClipLoss):
++    def forward(
++            self,
++            image_features,
++            text_features,
++            logit_scale,
++            dist_image_features,
++            dist_text_features,
++            syn_text_features=None,
++            dist_syn_text_features=None,
++            output_dict=False,
++    ):
++        loss_gt = super().forward(
++            image_features,
++            text_features,
++            logit_scale,
++            dist_image_features,
++            dist_text_features,
++            output_dict=output_dict,
++        )
++        if syn_text_features is None:
++            return loss_gt
++
++        loss_syn = super().forward(
++            image_features,
++            syn_text_features,
++            logit_scale,
++            dist_image_features,
++            dist_syn_text_features,
++            output_dict=output_dict,
++        )
++        if output_dict:
++            contrastive_loss = (
++                loss_gt["contrastive_loss"] + loss_syn["contrastive_loss"]
++            )
++            distill_loss = (
++                loss_gt["distill_loss"] + loss_syn["distill_loss"]
++            )
++            return {"contrastive_loss": contrastive_loss, "distill_loss": distill_loss}
++
++        contrastive_loss = loss_gt[0] + loss_syn[0]
++        distill_loss = loss_gt[1] + loss_syn[1]
++        return contrastive_loss, distill_loss
++
++
+ def neighbour_exchange(from_rank, to_rank, tensor, group=None):
+     tensor_recv = torch.zeros_like(tensor)
+     send_op = torch.distributed.P2POp(
+@@ -446,3 +553,155 @@ class SigLipLoss(nn.Module):
+                 assert False
+ 
+         return {"contrastive_loss": loss} if output_dict else loss
++
++
++class DistillSigLipLoss(SigLipLoss):
++    def __init__(
++        self,
++        *args,
++        teacher_dimension=[-1],
++        distill_loss_weights=[1.0, 1.0],
++        average_after_sigmoid=False,
++        dist_logit_scale=None,
++        dist_logit_bias=None,
++        **kwargs,
++    ):
++        super().__init__()
++        super().__init__(*args, **kwargs)
++        self.dist_logit_scale = dist_logit_scale
++        self.dist_logit_bias = dist_logit_bias
++        self.teacher_dimension = teacher_dimension
++        self.distill_loss_weights = distill_loss_weights
++        self.average_after_sigmoid = average_after_sigmoid
++
++    def get_labels_dist(self, image_features, text_features, logit_scale,
++                        logit_bias=None):
++        """Compute sum_t Sigmoid(a_t @ b_t^T) for between features from an ensemble model."""
++        dims = self.teacher_dimension
++        num_members = len(dims)
++        dims = np.cumsum([0] + dims)
++        logit_scale = logit_scale or [1.0]*num_members
++        logit_bias = logit_bias or [0]*num_members
++        logits = [
++            logit_scale[i] * (image_features[:, dims[i]:dims[i+1]]
++                              @ text_features[:, dims[i]:dims[i+1]].T)
++            + logit_bias[i]
++            for i in range(num_members)
++        ]
++        logits = sum([F.sigmoid(logit) for logit in logits]) / num_members
++        return 2*logits-1
++
++    def _loss(self, image_features, text_features, logit_scale, logit_bias,
++              dist_image_features, dist_text_features, dist_logit_scale,
++              dist_logit_bias, negative_only=False):
++        logits = self.get_logits(image_features, text_features, logit_scale, logit_bias)
++
++        dist_logit_scale = self.dist_logit_scale or dist_logit_scale
++        dist_logit_bias = self.dist_logit_bias or dist_logit_bias
++
++        if self.average_after_sigmoid:
++            dist_labels = self.get_labels_dist(dist_image_features, dist_text_features,
++                                               dist_logit_scale, dist_logit_bias)
++        else:
++            dist_logits = self.get_logits(dist_image_features, dist_text_features,
++                                          dist_logit_scale, dist_logit_bias)
++            dist_labels = 2*F.sigmoid(dist_logits)-1
++
++        labels = self.get_ground_truth(
++            image_features.device,
++            image_features.dtype,
++            image_features.shape[0],
++            negative_only=negative_only,
++        )
++        contrastive_loss = (-F.logsigmoid(labels * logits).sum(1).mean(0)
++                            * self.distill_loss_weights[0])
++        distill_loss = (-F.logsigmoid(dist_labels * logits).sum(1).mean(0)
++                        * self.distill_loss_weights[1])
++        return contrastive_loss, distill_loss
++
++    def forward(
++        self,
++        image_features,
++        text_features,
++        logit_scale,
++        logit_bias,
++        dist_image_features,
++        dist_text_features,
++        dist_logit_scale=None,
++        dist_logit_bias=None,
++        output_dict=False,
++    ):
++        loss = self._loss(
++            image_features, text_features, logit_scale, logit_bias,
++            dist_image_features, dist_text_features, dist_logit_scale, dist_logit_bias
++        )
++
++        if self.world_size > 1:
++            # exchange text features w/ neighbour world_size - 1 times
++            right_rank = (self.rank + 1) % self.world_size
++            left_rank = (self.rank - 1 + self.world_size) % self.world_size
++            if self.bidir:
++                text_features_to_right = text_features_to_left = text_features
++                dist_text_features_to_right = dist_text_features_to_left = dist_text_features
++                num_bidir, remainder = divmod(self.world_size - 1, 2)
++                for i in range(num_bidir):
++                    text_features_recv = neighbour_exchange_bidir_with_grad(
++                        left_rank,
++                        right_rank,
++                        text_features_to_left,
++                        text_features_to_right,
++                    )
++                    dist_text_features_recv = neighbour_exchange_bidir_with_grad(
++                        left_rank,
++                        right_rank,
++                        dist_text_features_to_left,
++                        dist_text_features_to_right,
++                    )
++
++                    for f, ft in zip(text_features_recv, dist_text_features_recv):
++                        lossi = self._loss(
++                            image_features, f, logit_scale, logit_bias,
++                            dist_image_features, ft, dist_logit_scale,
++                            dist_logit_bias,
++                            negative_only=True
++                        )
++                        loss = loss[0]+lossi[0], loss[1]+lossi[1]
++                    text_features_to_left, text_features_to_right = text_features_recv
++                    dist_text_features_to_left, dist_text_features_to_right = dist_text_features_recv
++
++                if remainder:
++                    text_features_recv = neighbour_exchange_with_grad(
++                        left_rank, right_rank, text_features_to_right)
++                    dist_text_features_recv = neighbour_exchange_with_grad(
++                        left_rank, right_rank, dist_text_features_to_right)
++
++                    lossi = self._loss(
++                        image_features, text_features_recv, logit_scale, logit_bias,
++                        dist_image_features, dist_text_features_recv, dist_logit_scale,
++                        dist_logit_bias,
++                        negative_only=True
++                    )
++                    loss = loss[0]+lossi[0], loss[1]+lossi[1]
++            else:
++                text_features_to_right = text_features
++                dist_text_features_to_right = dist_text_features
++                for i in range(self.world_size - 1):
++                    text_features_from_left = neighbour_exchange_with_grad(
++                        left_rank, right_rank, text_features_to_right)
++                    dist_text_features_from_left = neighbour_exchange_with_grad(
++                        left_rank, right_rank, dist_text_features_to_right)
++
++                    lossi = self._loss(
++                        image_features, text_features_from_left, logit_scale, logit_bias,
++                        dist_image_features, dist_text_features_from_left, dist_logit_scale,
++                        dist_logit_bias,
++                        negative_only=True
++                    )
++                    loss = loss[0]+lossi[0], loss[1]+lossi[1]
++                    text_features_to_right = text_features_from_left
++                    dist_text_features_to_right = dist_text_features_from_left
++
++        if output_dict:
++            return {"contrastive_loss": loss[0], "distill_loss": loss[1]}
++
++        return loss
+diff --git a/src/open_clip/model.py b/src/open_clip/model.py
+index 57fa186..507cf33 100644
+--- a/src/open_clip/model.py
++++ b/src/open_clip/model.py
+@@ -52,6 +52,7 @@ class CLIPVisionCfg:
+     timm_proj_bias: bool = False  # enable bias final projection
+     timm_drop: float = 0.  # head dropout
+     timm_drop_path: Optional[float] = None  # backbone stochastic depth
++    timm_dynamic_img_size: Optional[bool] = None
+ 
+ 
+ @dataclass
+@@ -128,6 +129,7 @@ def _build_vision_tower(
+             patch_drop=vision_cfg.patch_dropout if vision_cfg.patch_dropout > 0 else None,
+             embed_dim=embed_dim,
+             image_size=vision_cfg.image_size,
++            dynamic_img_size=vision_cfg.timm_dynamic_img_size,
+         )
+     elif isinstance(vision_cfg.layers, (tuple, list)):
+         vision_heads = vision_cfg.width * 32 // vision_cfg.head_width
+@@ -614,6 +616,36 @@ class CustomTextCLIP(nn.Module):
+         return image_features, text_features, self.logit_scale.exp()
+ 
+ 
++class Ensemble(nn.Module):
++    def __init__(self, members):
++        super().__init__()
++        self.members = members
++
++    def forward(
++        self,
++        image: Optional[torch.Tensor] = None,
++        text: Optional[torch.Tensor] = None,
++    ):
++        image_features = []
++        text_features = []
++        for m in self.members:
++            model_out = m(image, text)
++            if self.members[0].output_dict:
++                image_features += [model_out["image_features"]]
++                text_features += [model_out["text_features"]]
++            else:
++                image_features += [model_out[0]]
++                text_features += [model_out[0]]
++        image_features = torch.cat(image_features, dim=1)
++        text_features = torch.cat(text_features, dim=1)
++        if self.members[0].output_dict:
++            return {
++                "image_features": image_features,
++                "text_features": text_features,
++            }
++        return image_features, text_features
++
++
+ def convert_weights_to_lp(model: nn.Module, dtype=torch.float16):
+     """Convert applicable model parameters to low-precision (bf16 or fp16)"""
+ 
+diff --git a/src/open_clip/timm_model.py b/src/open_clip/timm_model.py
+index d9ad571..7e91c57 100644
+--- a/src/open_clip/timm_model.py
++++ b/src/open_clip/timm_model.py
+@@ -36,6 +36,7 @@ class TimmModel(nn.Module):
+             drop_path: Optional[float] = None,
+             patch_drop: Optional[float] = None,
+             pretrained: bool = False,
++            dynamic_img_size=None,
+     ):
+         super().__init__()
+         if timm is None:
+@@ -48,6 +49,8 @@ class TimmModel(nn.Module):
+             timm_kwargs['drop_path_rate'] = drop_path
+         if patch_drop is not None:
+             timm_kwargs['patch_drop_rate'] = patch_drop
++        if dynamic_img_size is not None:
++            timm_kwargs['dynamic_img_size'] = dynamic_img_size
+ 
+         custom_pool = pool in ('abs_attn', 'rot_attn')
+         if proj:
+diff --git a/src/open_clip_train/data.py b/src/open_clip_train/data.py
+index 07b9fee..2a48e39 100644
+--- a/src/open_clip_train/data.py
++++ b/src/open_clip_train/data.py
+@@ -8,6 +8,7 @@ import sys
+ import braceexpand
+ from dataclasses import dataclass
+ from multiprocessing import Value
++import re
+ 
+ import numpy as np
+ import pandas as pd
+@@ -19,6 +20,7 @@ from torch.utils.data import Dataset, DataLoader, SubsetRandomSampler, IterableD
+ from torch.utils.data.distributed import DistributedSampler
+ from webdataset.filters import _shuffle
+ from webdataset.tariterators import base_plus_ext, url_opener, tar_file_expander, valid_sample
++from open_clip_train.dr.transforms import compose_from_config
+ 
+ try:
+     import horovod.torch as hvd
+@@ -177,12 +179,100 @@ def filter_no_caption_or_no_image(sample):
+     return has_caption and has_image
+ 
+ 
++def filter_small_image(sample, min_size):
++    return min(sample["image"].size) >= min_size
++
++
+ def log_and_continue(exn):
+     """Call in an exception handler to ignore any exception, issue a warning, and continue."""
+     logging.warning(f'Handling webdataset error ({repr(exn)}). Ignoring.')
+     return True
+ 
+ 
++def preprocess_dr(
++    sample, dr_transforms, tokenizer, distill, mix_synthetic, mix_synthetic_ratio,
++    sample_sequential, shared_epoch, syn_text_key_regex,
++):
++    """Preprocess image, text, synthetic-captions, and DR CLIP embeddings."""
++    # Preprocess image
++    # Sample an image augmentation
++    if distill:
++        image = sample["image"].convert('RGB')
++        image, _ = dr_transforms(image)
++    else:
++        if sample_sequential:
++            aug_idx = shared_epoch.get_value() % len(sample["paug.json"]["param_aug"])
++        else:
++            aug_idx = np.random.randint(0, len(sample["paug.json"]["param_aug"]))
++        params = sample["paug.json"]["param_aug"][aug_idx]
++        params = dr_transforms.decompress(params)
++        image = sample["image"].convert('RGB')
++        image, _ = dr_transforms.reapply(image, params)
++
++    # Preprocess text
++    texts = sample["text"]
++    texts = [texts] if not isinstance(texts, list) else texts
++    if sample_sequential:
++        capi = shared_epoch.get_value() % len(texts)
++    else:
++        capi = np.random.randint(0, len(texts))
++    text = texts[capi]
++    text = tokenizer(text)[0]
++
++    # Preprocess synthetic text
++    syn_text_keys = [k for k in sample["syn.json"].keys()
++                     if re.match(syn_text_key_regex, k)]
++    syn_text_i = np.random.randint(0, len(syn_text_keys))
++    syn_text_i_key = syn_text_keys[syn_text_i]
++    syn_text_i_texts = sample["syn.json"][syn_text_i_key]
++    if sample_sequential:
++        scapi = shared_epoch.get_value() % len(syn_text_i_texts)
++    else:
++        scapi = np.random.randint(0, len(syn_text_i_texts))
++    syn_text = syn_text_i_texts[scapi]
++    syn_text = tokenizer(syn_text)[0]
++
++    # Preprocess embeddings
++    if distill:
++        image_emb = torch.zeros(0)
++        text_emb = torch.zeros(0)
++        syn_text_emb = torch.zeros(0)
++    else:
++        emb_format = "npz" if "npz" in sample else "pth.gz"  # Prefer fp32 if exists
++        image_emb = sample[emb_format]["image_emb"][aug_idx]
++        text_emb_all = sample[emb_format]["text_emb"]
++        text_emb = text_emb_all[capi]
++        if len(text_emb_all) > len(texts):
++            # Backward compatibility for "text_embedding" containing all embeddings
++            syn_text_emb = text_emb_all[len(texts)+scapi]
++        else:
++            syn_text_emb = sample[emb_format][syn_text_i_key+"_emb"][scapi]
++        if not isinstance(image_emb, torch.Tensor):
++            image_emb = torch.tensor(image_emb)
++            text_emb = torch.tensor(text_emb)
++            syn_text_emb = torch.tensor(syn_text_emb)
++        image_emb = image_emb.type(torch.float32)
++        text_emb = text_emb.type(torch.float32)
++        syn_text_emb = syn_text_emb.type(torch.float32)
++
++    if mix_synthetic:
++        if np.random.rand() < mix_synthetic_ratio:
++            text = syn_text
++            text_emb = syn_text_emb
++        # No double loss on gt/syn captions
++        syn_text = []
++        syn_text_emb = []
++
++    return {
++        'image': image,
++        'text': text,
++        'image_emb': image_emb,
++        'text_emb': text_emb,
++        "syn_text": syn_text,
++        'syn_text_emb': syn_text_emb,
++    }
++
++
+ def group_by_keys_nothrow(data, keys=base_plus_ext, lcase=True, suffixes=None, handler=None):
+     """Return function over iterator that groups key, value pairs into samples.
+ 
+@@ -386,14 +476,74 @@ def get_wds_dataset(args, preprocess_img, is_train, epoch=0, floor=False, tokeni
+             # at this point, we have an iterator over the shards assigned to each worker
+             wds.tarfile_to_samples(handler=log_and_continue),
+         ])
+-    pipeline.extend([
+-        wds.select(filter_no_caption_or_no_image),
+-        wds.decode("pilrgb", handler=log_and_continue),
+-        wds.rename(image="jpg;png;jpeg;webp", text="txt"),
+-        wds.map_dict(image=preprocess_img, text=lambda text: tokenizer(text)[0]),
+-        wds.to_tuple("image", "text"),
+-        wds.batched(args.batch_size, partial=not is_train)
+-    ])
++
++    # Temporary support for DataCompDR images
++    from PIL import ImageFile, Image
++    ImageFile.LOAD_TRUNCATED_IMAGES = True
++    Image.MAX_IMAGE_PIXELS = None
++    import warnings
++    warnings.filterwarnings("ignore", "(Possibly )?corrupt EXIF data", UserWarning)
++
++    if not args.dataset_reinforcement:
++        pipeline.extend([
++            wds.select(filter_no_caption_or_no_image),
++            wds.decode("pilrgba", handler=log_and_continue),
++            wds.rename(image="jpg;png;jpeg;webp", text="txt"),
++            wds.map_dict(image=preprocess_img, text=lambda text: tokenizer(text)[0]),
++            wds.to_tuple("image", "text"),
++            wds.batched(args.batch_size, partial=not is_train)
++        ])
++    else:
++        # Setup DR transformations
++        with open(args.dataset_reinforcement_config, 'r') as f:
++            rconfig = json.load(f)
++        rconfig_aug = rconfig["reinforce"]["image_augmentation"]
++        # Replace augmentation parameters where DR is flexible.
++        # DR also supports additional augmentations in args.aug-cfg but not
++        # implemented here.
++        from torchvision.transforms import RandomResizedCrop, Normalize
++        del rconfig_aug["normalize"]
++        for t in preprocess_img.transforms:
++            if isinstance(t, Normalize):
++                rconfig_aug["normalize"] = {"mean": t.mean, "std": t.std}
++            if isinstance(t, RandomResizedCrop):
++                # One can also pass image_size to dr_transforms.reapply to support
++                # variable resolution training
++                rconfig_aug["random_resized_crop"].update({
++                    "size": t.size,
++                    "interpolation": t.interpolation,
++                })
++        dr_transforms = compose_from_config(rconfig_aug)
++
++        pipeline.extend([
++            wds.select(filter_no_caption_or_no_image),
++            wds.decode("pilrgba", handler=log_and_continue),
++            wds.rename(image="jpg;png;jpeg;webp", text="txt"),
++        ])
++        if args.dataset_reinforcement_filter_image_size is not None:
++            pipeline.extend([
++                wds.select(
++                    lambda x: filter_small_image(
++                        x, args.dataset_reinforcement_filter_image_size
++                    )
++                ),
++            ])
++        pipeline.extend([
++            wds.map(
++                lambda sample: preprocess_dr(
++                    sample, dr_transforms,
++                    tokenizer,
++                    args.distill,
++                    args.dataset_reinforcement_mix_synthetic,
++                    args.dataset_reinforcement_mix_synthetic_ratio,
++                    args.dataset_reinforcement_sample_sequential,
++                    shared_epoch,
++                    args.dataset_reinforcement_syn_text_key_regex,
++                )
++            ),
++            wds.to_tuple("image", "text", "image_emb", "text_emb", "syn_text", "syn_text_emb"),
++            wds.batched(args.batch_size, partial=not is_train)
++        ])
+ 
+     dataset = wds.DataPipeline(*pipeline)
+ 
+diff --git a/src/open_clip_train/main.py b/src/open_clip_train/main.py
+index a53da6d..04450ad 100644
+--- a/src/open_clip_train/main.py
++++ b/src/open_clip_train/main.py
+@@ -59,7 +59,7 @@ def get_latest_checkpoint(path: str, remote : bool):
+         print(result)
+         if result.returncode == 1:
+             return None
+-        checkpoints = [os.path.join(path, x.split(' ')[-1]) for x in result.stdout.decode().split('\n')[:-1]]
++        checkpoints = [os.path.join(path, x.split(' ')[-1]) for x in result.stdout.decode().split('\n')[:-1] if '.pt' in x]
+     else:
+         checkpoints = glob.glob(path + '**/*.pt', recursive=True)
+     if checkpoints:
+@@ -299,9 +299,9 @@ def main(args):
+             # this doesn't exist in older PyTorch, arg only added if enabled
+             ddp_args['static_graph'] = True
+         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[device], **ddp_args)
+-    
+-        if args.distill:
+-            dist_model = torch.nn.parallel.DistributedDataParallel(dist_model, device_ids=[device], **ddp_args)
++
++        # if args.distill:
++        #     dist_model = torch.nn.parallel.DistributedDataParallel(dist_model, device_ids=[device], **ddp_args)
+ 
+     # create optimizer and scaler
+     optimizer = None
+diff --git a/src/open_clip_train/params.py b/src/open_clip_train/params.py
+index 63e6f6c..112058c 100644
+--- a/src/open_clip_train/params.py
++++ b/src/open_clip_train/params.py
+@@ -457,6 +457,26 @@ def parse_args(args):
+         default=None,
+         help='Which pre-trained weights to distill from, if any.'
+     )
++    parser.add_argument(
++        "--distill-loss-weights",
++        type=float,
++        default=[1.0, 1.0],
++        nargs="+",
++        help='Tuple of [contrastive, distillation] loss weights if distillation is enabled.'
++    )
++    parser.add_argument(
++        "--distill-teacher-dimension",
++        type=int,
++        default=[-1],
++        nargs="+",
++        help="Number of dimensions for each teacher. Default: [-1]."
++    )
++    parser.add_argument(
++        "--distill-average-after-softmax",
++        default=False,
++        action="store_true",
++        help='For ensemble models in distillation, average logits after Softmax.'
++    )
+     parser.add_argument(
+         "--use-bnb-linear",
+         default=None,
+@@ -475,6 +495,69 @@ def parse_args(args):
+         type=str,
+         help='A string to specify a specific distributed loss implementation.'
+     )
++    parser.add_argument(
++        "--dataset-reinforcement",
++        default=False,
++        action="store_true",
++        help="If true, load image/text embeddings and synthetic captions from webdataset."
++    )
++    parser.add_argument(
++        "--dataset-reinforcement-config",
++        type=str,
++        default=None,
++        help="Pass the config file for dataset reinforcement."
++    )
++    parser.add_argument(
++        "--distill-logit-scale",
++        type=float,
++        nargs="+",
++        default=None,
++        help="Logit scale for distillation loss. None means fetch it from the model_out."
++    )
++    parser.add_argument(
++        "--distill-logit-bias",
++        type=float,
++        nargs="+",
++        default=None,
++        help="Bias scale for distillation loss. None means fetch it from the model_out."
++    )
++    parser.add_argument(
++        "--dataset-reinforcement-mix-synthetic",
++        default=False,
++        action="store_true",
++        help="Mix synthetic caption with ground-truth captions and randomly sample."
++    )
++    parser.add_argument(
++        "--dataset-reinforcement-mix-synthetic-ratio",
++        type=float,
++        default=0.0,
++        help="Mixing ration for synthetic vs ground-truth captions."
++        "0.0: all ground-truth and 1.0 means all synthetic."
++    )
++    parser.add_argument(
++        "--dataset-reinforcement-sample-sequential",
++        default=False,
++        action="store_true",
++        help="Sample augmentations and synthetic captions non-random sequential."
++    )
++    parser.add_argument(
++        "--dataset-reinforcement-syn-text-key-regex",
++        type=str,
++        default=r"^syn_text.*$",
++        help="Key for fetching the synthetic text. Defaults to `^syn_text.*$'."
++    )
++    parser.add_argument(
++        "--dataset-reinforcement-filter-image-size",
++        type=int,
++        default=None,
++        help="Filter images to be at least of this width/height. Defaults to no filter."
++    )
+ 
+     args = parser.parse_args(args)
+ 
+diff --git a/src/open_clip_train/train.py b/src/open_clip_train/train.py
+index 20d4dd0..0904921 100644
+--- a/src/open_clip_train/train.py
++++ b/src/open_clip_train/train.py
+@@ -89,9 +89,12 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
+         if not args.skip_scheduler:
+             scheduler(step)
+ 
+-        images, texts = batch
++        images, texts = batch[:2]
+         images = images.to(device=device, dtype=input_dtype, non_blocking=True)
+         texts = texts.to(device=device, non_blocking=True)
++        if args.dataset_reinforcement and not args.dataset_reinforcement_mix_synthetic:
++            syn_texts = batch[4].to(device=device, non_blocking=True)
++            texts = torch.cat([texts, syn_texts[:, :texts.shape[-1]]], dim=0)
+ 
+         data_time_m.update(time.time() - end)
+         optimizer.zero_grad()
+@@ -100,10 +103,32 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
+             with autocast():
+                 model_out = model(images, texts)
+                 logit_scale = model_out["logit_scale"]
++                # DR and text/syn-text separation
++                if args.dataset_reinforcement and not args.dataset_reinforcement_mix_synthetic:
++                    model_out.update({
++                        "text_features": model_out["text_features"][:images.shape[0]],
++                        "syn_text_features": model_out["text_features"][images.shape[0]:],
++                    })
++                # Online KD
+                 if args.distill:
+                     with torch.no_grad():
+                         dist_model_out = dist_model(images, texts)
+                     model_out.update({f'dist_{k}': v for k, v in dist_model_out.items()})
++                    if args.dataset_reinforcement and not args.dataset_reinforcement_mix_synthetic:
++                        model_out.update({
++                            "dist_text_features": model_out["dist_text_features"][:images.shape[0]],
++                            "dist_syn_text_features": model_out["dist_text_features"][images.shape[0]:],
++                        })
++                # Offline DR teacher embs
++                if not args.distill and args.dataset_reinforcement:
++                    model_out.update({
++                        "dist_image_features": batch[2].to(device=device, non_blocking=True),
++                        "dist_text_features": batch[3].to(device=device, non_blocking=True),
++                    })
++                    if not args.dataset_reinforcement_mix_synthetic:
++                        model_out.update({
++                            "dist_syn_text_features": batch[5].to(device=device, non_blocking=True)
++                        })
+                 losses = loss(**model_out, output_dict=True)
+ 
+                 total_loss = sum(losses.values())

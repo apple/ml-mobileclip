@@ -11,7 +11,7 @@ torchrun --nproc_per_node $num_gpus --nnodes $num_nodes --node_rank $ROLE_RANK \
     --rdzv_backend c10d \
     --rdzv_endpoint "$MASTER_ADDR:$MASTER_PORT" \
     --rdzv_conf "timeout=3000,read_timeout=10000" \
-    -m src.training.main \
+    -m src.open_clip_train.main \
     --save-frequency 1 \
     --ddp-static-graph \
     --local-loss \

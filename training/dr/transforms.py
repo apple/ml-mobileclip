@@ -23,8 +23,8 @@ import torchvision.transforms as T
 from torchvision.transforms import functional as F
 from torchvision.transforms.autoaugment import _apply_op
 
-import training.dr.transforms_base as transforms
-from training.dr.transforms_base import clean_config
+import open_clip_train.dr.transforms_base as transforms
+from open_clip_train.dr.transforms_base import clean_config
 
 
 NO_PARAM = ()

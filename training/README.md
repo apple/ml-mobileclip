@@ -1,9 +1,17 @@
-# Training on DataCompDR with OpenCLIP
+# Multi-Modal DR Training with OpenCLIP
 We provide release code and a patch to
 [OpenCLIP](https://github.com/mlfoundations/open_clip/tree/main/src/open_clip) 
-for training models on DataCompDR.
+for training models on DR datasets (DataComp, DFN, or custom datasets generated 
+with [MobileCLIP-DR](https://github.com/apple/ml-mobileclip-dr).
+
+In additional to full offline training, we provide support for online knowledge 
+distillation from an ensemble of CLIP teachers.
 
 ## Data
+### DFNDR
+Not yet available.
+
+### DataCompDR
 Our reinforcements to DataComp are available on HuggingFace.
 - [DataCompDR-12M](https://huggingface.co/datasets/apple/DataCompDR-12M)
 - [DataCompDR-12M-BFloat16](https://huggingface.co/datasets/apple/DataCompDR-12M-bf16)
@@ -33,6 +41,8 @@ The images have to be downloaded separately. See
 [hf_dataset_example.py](../hf_dataset_example.py) for an example of downloading 
 a single image.
 
+
+
 ## Installing dependencies
 
 We use OpenCLIP for training. We have made minor modifications to OpenCLIP for 
@@ -47,13 +57,41 @@ cd ml-mobileclip/
 # Clone OpenCLIP repository, apply patch, and install
 git clone https://github.com/mlfoundations/open_clip.git
 cd open_clip
-git checkout cf86ee7ec4658845f640858ecd34d0f15588271a
-git apply ../open_clip.patch  # Support for sampling without replacement
+git checkout 7260a46e7b4bcf518f5200fea06da5bc85aae025  # Mon Mar 17 18:18:30 2025 -0400
+git apply ../open_clip_v2.patch
+cp ../configs/ ./ -r
+cp ../dr/ ./src/open_clip_train/ -r
+cp ../../mobileclip2/* ./src/open_clip/ -r
+```
+
+We retain the v1 patch for reproducibility. One can reproduce v1 OpenCLIP code 
+by following these steps:
+```
+# Revert changes for compatibility with older OpenCLIP commit
+sed -i 's/open_clip_train/training/g' ../dr/transforms.py
+find . --name "*.sh" | xargs sed -i 's/open_clip_train/training/g'
+
+# Clone OpenCLIP repository, apply patch, and install
+git clone https://github.com/mlfoundations/open_clip.git
+cd open_clip
+git checkout cf86ee7ec4658845f640858ecd34d0f15588271a  # Wed May 29 21:57:08 2024 +0700
+git apply ../open_clip_v1.patch
 cp ../configs/ ./ -r
 cp ../dr/ ./src/training/ -r
 ```
 
 ## Training
+
+### DFNDR
+We provide scripts for training on DFNDR-2B12M and DFNDR-2B.
+
+```bash
+cd open_clip/
+bash configs/run_dfndr12m.sh  # Train a MobileCILP-B on DFN-2B12M with DR
+bash configs/run_dfndr1B.sh  # Train a MobileCLIP-B on DFN-2B with DR
+```
+
+### DataCompDR
 
 We provide scripts for training on DataCompDR-12M and DataCompDR-1B.
 

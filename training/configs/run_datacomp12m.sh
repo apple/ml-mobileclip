@@ -4,14 +4,14 @@ global_batch_size=8192
 num_seen_samples=$((30*1000*global_batch_size))
 exp_name="mobileclipb_datacomp12m_s30m_$(date +%Y-%m-%d_%H-%M-%S)"
 num_checkpoints=20  # An epoch is ns/num_checkpoints long
-data="DataCompDR-12M/shards/{00000000..00001023}.tar"
+data="DataComp-12M/shards/{00000000..00001023}.tar"
 
 torchrun --nproc_per_node $num_gpus --nnodes $num_nodes --node_rank $ROLE_RANK \
     --max_restarts=0 \
     --rdzv_backend c10d \
     --rdzv_endpoint "$MASTER_ADDR:$MASTER_PORT" \
     --rdzv_conf "timeout=3000,read_timeout=10000" \
-    -m src.training.main \
+    -m src.open_clip_train.main \
     --save-frequency 1 \
     --ddp-static-graph \
     --local-loss \
