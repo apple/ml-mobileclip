@@ -8,7 +8,7 @@ This is the official repository of
 
 The repository contains code for inference, training, and evaluation of MobileCLIP models trained on DataCompDR datasets and MobileCLIP2 models trained on DFNDR dataset.
 
-**For code to generate multi-modal reinforced datasets at large scale see [ml-mobileclip-dr](https://github.com/apple/ml-mobileclip) repository.**
+**For code to generate multi-modal reinforced datasets at large scale see [ml-mobileclip-dr](https://github.com/apple/ml-mobileclip-dr) repository.**
 
 [//]: # (![MobileCLIP Performance]&#40;docs/fig_accuracy_latency.png&#41;)
 [//]: # (![MobileCLIP2 Performance]&#40;docs/fig_accuracy_latency_v2.png&#41;)
@@ -17,7 +17,7 @@ The repository contains code for inference, training, and evaluation of MobileCL
 <img src="docs/fig_accuracy_latency_v2.png" alt="Accuracy vs latency figure V2." width="400"/>
 </p>
 
-- **Update 2025/08/28:** MobileCLIP2 models are released as well as our [V2 training](./training) and data generation code ([ml-mobileclip-dr](https://github.com/apple/ml-mobileclip)).
+- **Update 2025/08/28:** MobileCLIP2 [models](https://huggingface.co/collections/apple/mobileclip2-68ac947dcb035c54bcd20c47) are released as well as our [V2 training code](./training) and data generation code ([ml-mobileclip-dr](https://github.com/apple/ml-mobileclip-dr)).
 - **Update 2025/07/22:** MobileCLIP2 accepted to TMLR with <mark>Featured Certification</mark>.
 - **Update 2024/11/22:** Releasing iOS app to demonstrate the use of our model 
 - for real-time zero-shot image classification. See [ios_app](./ios_app/).
