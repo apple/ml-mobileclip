@@ -111,6 +111,11 @@ with torch.no_grad(), torch.cuda.amp.autocast():
 print("Label probs:", text_probs)
 
 ```
+
+For a folder-level zero-shot classification example that writes top-k CSV
+results from repeated `--label` values or a newline-delimited labels file, see
+[examples/zero_shot_folder_classification.py](./examples/zero_shot_folder_classification.py).
+
 The following variants are directly available on OpenCLIP by passing the 
 corresponding pretrained argument and not specifying the image-mean/image-std:
 ```
